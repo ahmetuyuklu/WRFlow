@@ -1,9 +1,17 @@
-# WRFlow
+<p align="center">
+  <img src="assets/logo.svg" alt="WRFlow" height="52">
+</p>
 
-**WRF Configuration Assistant** — A browser-based wizard that generates complete WRF/WPS configuration files and run scripts.
+<p align="center">
+  <strong>WRF Configuration Assistant</strong> — A browser-based wizard that generates complete WRF/WPS configuration files and run scripts.
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub Pages](https://img.shields.io/badge/demo-GitHub%20Pages-brightgreen)](https://ahmetuyuklu.github.io/WRFlow)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://ahmetuyuklu.github.io/WRFlow"><img src="https://img.shields.io/badge/demo-GitHub%20Pages-brightgreen" alt="GitHub Pages"></a>
+</p>
+
+---
 
 ---
 

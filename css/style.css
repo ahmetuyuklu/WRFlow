@@ -227,8 +227,20 @@ html, body {
   border: none;
   cursor: pointer;
 }
-.btn-next:hover {
+.btn-next:hover,
+.btn-primary:hover {
   background-color: var(--primary-600);
+}
+.btn-primary {
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 200ms;
+  background-color: var(--primary-500);
+  color: #fff;
+  border: none;
+  cursor: pointer;
 }
 .btn-prev {
   padding: 0.625rem 1.25rem;
