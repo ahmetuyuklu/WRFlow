@@ -148,73 +148,6 @@
                   <option value="polar">Polar Stereographic</option>
                   <option value="lat-lon">Lat-Lon (Cylindrical Equidistant)</option>
                 </select>
-              </div>
-
-              <!-- Resolution -->
-              <div class="grid grid-cols-2 gap-3">
-                <div class="space-y-2">
-                  <label class="label-text">DX (m)
-                    <span class="tooltip-trigger" data-tooltip="Grid resolution in the west-east direction (meters). NCAR recommends DX = DY.">?</span>
-                  </label>
-                  <input type="number" id="dx" class="input-field" value="9000" min="1000" step="1000">
-                </div>
-                <div class="space-y-2">
-                  <label class="label-text">DY (m)
-                    <span class="tooltip-trigger" data-tooltip="Grid resolution in the south-north direction (meters). NCAR recommends DX = DY.">?</span>
-                  </label>
-                  <input type="number" id="dy" class="input-field" value="9000" min="1000" step="1000">
-                </div>
-              </div>
-
-              <!-- Center coordinates -->
-              <div class="grid grid-cols-2 gap-3">
-                <div class="space-y-2">
-                  <label class="label-text">Center Lat (ref_lat)</label>
-                  <input type="number" id="ref-lat" class="input-field" step="0.01" placeholder="e.g. 39.00">
-                </div>
-                <div class="space-y-2">
-                  <label class="label-text">Center Lon (ref_lon)</label>
-                  <input type="number" id="ref-lon" class="input-field" step="0.01" placeholder="e.g. 35.00">
-                </div>
-              </div>
-
-              <!-- Grid dimensions -->
-              <div class="grid grid-cols-2 gap-3">
-                <div class="space-y-2">
-                  <label class="label-text">e_we (W-E grid pts)
-                    <span class="tooltip-trigger" data-tooltip="West-East grid dimension. Minimum 100 recommended. Must be odd+1 for nesting.">?</span>
-                  </label>
-                  <input type="number" id="e-we" class="input-field" min="100" placeholder="auto">
-                </div>
-                <div class="space-y-2">
-                  <label class="label-text">e_sn (S-N grid pts)
-                    <span class="tooltip-trigger" data-tooltip="South-North grid dimension. Minimum 100 recommended.">?</span>
-                  </label>
-                  <input type="number" id="e-sn" class="input-field" min="100" placeholder="auto">
-                </div>
-              </div>
-
-              <!-- True latitudes (Lambert/Polar) -->
-              <div id="truelat-section" class="grid grid-cols-2 gap-3">
-                <div class="space-y-2">
-                  <label class="label-text">truelat1
-                    <span class="tooltip-trigger" data-tooltip="First true latitude for Lambert conformal or Polar stereographic projection.">?</span>
-                  </label>
-                  <input type="number" id="truelat1" class="input-field" step="0.01" placeholder="auto">
-                </div>
-                <div class="space-y-2">
-                  <label class="label-text">truelat2
-                    <span class="tooltip-trigger" data-tooltip="Second true latitude for Lambert conformal projection.">?</span>
-                  </label>
-                  <input type="number" id="truelat2" class="input-field" step="0.01" placeholder="auto">
-                </div>
-              </div>
-
-              <!-- Stand lon -->
-              <div class="space-y-2">
-                <label class="label-text">stand_lon
-                  <span class="tooltip-trigger" data-tooltip="Standard longitude parallel to Y-axis. Set to ref_lon to center your domain.">?</span>
-                </label>
                 <input type="number" id="stand-lon" class="input-field" step="0.01" placeholder="auto (= ref_lon)">
               </div>
 
@@ -485,6 +418,73 @@
             <p class="text-xs text-surface-400">Generated from your configuration. Review, copy, or download.</p>
           </div>
 
+          <!-- WRF Paths Configuration -->
+          <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 space-y-3">
+            <h3 class="text-sm font-semibold text-blue-700 dark:text-blue-300">WRF Installation Paths &amp; Runtime</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div class="space-y-2">
+                <label class="label-text text-xs">WPS_DIR</label>
+                <input type="text" id="wps-dir" class="input-field text-xs" placeholder="/path/to/WPS" value="/path/to/WPS">
+              </div>
+              <div class="space-y-2">
+                <label class="label-text text-xs">WRF_DIR</label>
+                <input type="text" id="wrf-dir" class="input-field text-xs" placeholder="/path/to/WRF" value="/path/to/WRF">
+              </div>
+              <div class="space-y-2">
+                <label class="label-text text-xs">WPS_GEOG_DIR <span class="tooltip-trigger" data-tooltip="Path to the WPS geographical data (WPS_GEOG). Used as geog_data_path in namelist.wps.">?</span></label>
+                <input type="text" id="adv-geog-path" class="input-field text-xs" placeholder="/path/to/WPS_GEOG/" value="/path/to/WPS_GEOG/">
+              </div>
+            </div>
+            <div class="space-y-2 pt-1 border-t border-blue-200 dark:border-blue-800">
+              <div class="flex flex-wrap items-end gap-6">
+                <div class="space-y-1">
+                  <label class="label-text text-xs">Scheduler Mode</label>
+                  <div class="flex gap-4">
+                    <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="radio" name="scheduler" value="local" checked class="accent-primary-500"> Local / Auto
+                    </label>
+                    <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="radio" name="scheduler" value="mpi" class="accent-primary-500"> MPI
+                    </label>
+                    <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="radio" name="scheduler" value="slurm" class="accent-primary-500"> Slurm
+                    </label>
+                  </div>
+                </div>
+                <div class="space-y-1" id="num-procs-group">
+                  <label class="label-text text-xs">CPU Processes (NUM_PROCS)
+                    <span class="tooltip-trigger" data-tooltip="Number of MPI tasks to use for wrf.exe. Set to number of CPU cores available.">?</span>
+                  </label>
+                  <input type="number" id="num-procs" class="input-field text-xs w-28" min="1" max="9999" value="4">
+                </div>
+              </div>
+              <div id="slurm-options" class="hidden">
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Partition</label>
+                    <input type="text" id="slurm-partition" class="input-field text-xs" placeholder="compute" value="compute">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Nodes</label>
+                    <input type="number" id="slurm-nodes" class="input-field text-xs" min="1" value="1">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Tasks per Node</label>
+                    <input type="number" id="slurm-ntasks-per-node" class="input-field text-xs" min="1" value="32">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Walltime (HH:MM:SS)</label>
+                    <input type="text" id="slurm-walltime" class="input-field text-xs" placeholder="24:00:00" value="24:00:00">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Account (optional)</label>
+                    <input type="text" id="slurm-account" class="input-field text-xs" placeholder="">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Tabs -->
           <div class="flex gap-1 border-b border-surface-200 dark:border-surface-700">
             <button class="namelist-tab active" data-tab="wps">namelist.wps</button>
@@ -608,73 +608,6 @@
           <div class="flex gap-1 border-b border-surface-200 dark:border-surface-700">
             <button class="script-tab active" data-tab="download-script">Download Script</button>
             <button class="script-tab" data-tab="run-script">Run Script</button>
-          </div>
-
-          <!-- WRF Paths Configuration -->
-          <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 space-y-3">
-            <h3 class="text-sm font-semibold text-blue-700 dark:text-blue-300">WRF Installation Paths &amp; Runtime</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <div class="space-y-2">
-                <label class="label-text text-xs">WPS_DIR</label>
-                <input type="text" id="wps-dir" class="input-field text-xs" placeholder="/path/to/WPS" value="/path/to/WPS">
-              </div>
-              <div class="space-y-2">
-                <label class="label-text text-xs">WRF_DIR</label>
-                <input type="text" id="wrf-dir" class="input-field text-xs" placeholder="/path/to/WRF" value="/path/to/WRF">
-              </div>
-              <div class="space-y-2">
-                <label class="label-text text-xs">WPS_GEOG_DIR <span class="tooltip-trigger" data-tooltip="Path to the WPS geographical data (WPS_GEOG). Used as geog_data_path in namelist.wps.">?</span></label>
-                <input type="text" id="adv-geog-path" class="input-field text-xs" placeholder="/path/to/WPS_GEOG/" value="/path/to/WPS_GEOG/">
-              </div>
-            </div>
-            <div class="space-y-2 pt-1 border-t border-blue-200 dark:border-blue-800">
-              <div class="flex flex-wrap items-end gap-6">
-                <div class="space-y-1">
-                  <label class="label-text text-xs">Scheduler Mode</label>
-                  <div class="flex gap-4">
-                    <label class="flex items-center gap-1.5 text-xs cursor-pointer">
-                      <input type="radio" name="scheduler" value="local" checked class="accent-primary-500"> Local / Auto
-                    </label>
-                    <label class="flex items-center gap-1.5 text-xs cursor-pointer">
-                      <input type="radio" name="scheduler" value="mpi" class="accent-primary-500"> MPI
-                    </label>
-                    <label class="flex items-center gap-1.5 text-xs cursor-pointer">
-                      <input type="radio" name="scheduler" value="slurm" class="accent-primary-500"> Slurm
-                    </label>
-                  </div>
-                </div>
-                <div class="space-y-1" id="num-procs-group">
-                  <label class="label-text text-xs">CPU Processes (NUM_PROCS)
-                    <span class="tooltip-trigger" data-tooltip="Number of MPI tasks to use for wrf.exe. Set to number of CPU cores available.">?</span>
-                  </label>
-                  <input type="number" id="num-procs" class="input-field text-xs w-28" min="1" max="9999" value="4">
-                </div>
-              </div>
-              <div id="slurm-options" class="hidden">
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
-                  <div class="space-y-1">
-                    <label class="label-text text-xs">Partition</label>
-                    <input type="text" id="slurm-partition" class="input-field text-xs" placeholder="compute" value="compute">
-                  </div>
-                  <div class="space-y-1">
-                    <label class="label-text text-xs">Nodes</label>
-                    <input type="number" id="slurm-nodes" class="input-field text-xs" min="1" value="1">
-                  </div>
-                  <div class="space-y-1">
-                    <label class="label-text text-xs">Tasks per Node</label>
-                    <input type="number" id="slurm-ntasks-per-node" class="input-field text-xs" min="1" value="32">
-                  </div>
-                  <div class="space-y-1">
-                    <label class="label-text text-xs">Walltime (HH:MM:SS)</label>
-                    <input type="text" id="slurm-walltime" class="input-field text-xs" placeholder="24:00:00" value="24:00:00">
-                  </div>
-                  <div class="space-y-1">
-                    <label class="label-text text-xs">Account (optional)</label>
-                    <input type="text" id="slurm-account" class="input-field text-xs" placeholder="">
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
 
           <!-- Download script content -->
