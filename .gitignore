@@ -14,14 +14,15 @@ Desktop.ini
 .env
 .env.local
 .env.*.local
+_notes/
+*.local.md
+
 
 # Dependencies (not used, but just in case)
 node_modules/
 
 # Logs
 *.log
-bugs-todo.md    
-MANUAL_TEST_CHECKLIST.md
 
 # AI tracking
 .copilot/
