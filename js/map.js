@@ -55,6 +55,7 @@ const WRFMap = (() => {
         marker: false,
         circlemarker: false,
         rectangle: {
+          showArea: false,
           shapeOptions: {
             color: WRFDomain.DOMAIN_COLORS[0],
             weight: 3,

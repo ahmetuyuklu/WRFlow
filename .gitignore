@@ -17,10 +17,6 @@ Desktop.ini
 _notes/
 *.local.md
 
-
-# Dependencies (not used, but just in case)
-node_modules/
-
 # Logs
 *.log
 
