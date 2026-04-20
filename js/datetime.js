@@ -24,10 +24,10 @@ const WRFDateTime = (() => {
     IFS: {
       name: 'IFS',
       maxDurationHours: 240,  // 10 days
-      intervalSeconds: 10800, // 3 hours
+      intervalSeconds: 21600, // 6 hours
       synopticHours: [0, 12], // 00Z and 12Z only
       allHours: false,
-      description: 'ECMWF Open Data IFS — 0.4° resolution, 3h interval, up to 10-day forecast'
+      description: 'ECMWF Open Data IFS — 0.4° resolution, 6h interval (PL-constrained), up to 10-day forecast'
     }
   };
 

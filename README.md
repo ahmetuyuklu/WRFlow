@@ -42,7 +42,7 @@ WRFlow walks you through configuring a WRF simulation in 5 steps and generates e
 |--------|-----------|----------|-------|--------|
 | **GFS** | 0.25° | 3h | 16 days | cURL + NOMADS GRIB Filter (clipped) with AWS S3 fallback |
 | **ERA5** | 0.25° | 1h | Historical | Python + CDS API |
-| **IFS** | 0.4° | 3h | 10 days | Python + ecmwf-opendata (no API key) |
+| **IFS** | 0.4° | 6h | 10 days | Python + ecmwf-opendata (no API key) |
 
 **Notes:**
 - **GFS**: All variables and levels; ±3° bounding box clipping; configurable start forecast hour (e.g., f024–f048 only)

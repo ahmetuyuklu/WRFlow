@@ -322,7 +322,7 @@ print(f"All ERA5 data saved to {OUTPUT_DIR}/")
     const dateStr = WRFUtils.toGFSDateDir(startDate); // YYYYMMDD
     const cycleHour = startDate.getUTCHours(); // 0 or 12
     const maxFH = state.durationHours;
-    const interval = 3;
+    const interval = 6;
     const steps = [];
     for (let fh = 0; fh <= maxFH; fh += interval) steps.push(fh);
 
@@ -340,6 +340,8 @@ Prerequisites:
 
 Note: Only the most recent 1-2 IFS cycles are available via Open Data.
       For older dates, use ERA5 reanalysis instead.
+  Pressure-level fields are available every 6 hours in Open Data,
+  so this script uses a 6-hour interval for both PL and SFC files.
 """
 
 import os
@@ -405,6 +407,7 @@ print("  -> ifs_sfc.grib2 done")
 
 print(f"\\nAll IFS data saved to {OUTPUT_DIR}/")
 print("  Files: ifs_pl.grib2  ifs_sfc.grib2")
+print("  Interval: 6h (00, 06, 12, 18, ...)")
 print("Use Vtable.ECMWF in WPS ungrib for IFS GRIB2 files.")
 `;
 
@@ -428,7 +431,7 @@ print("Use Vtable.ECMWF in WPS ungrib for IFS GRIB2 files.")
       return 'Python script using the CDS API. Requires: pip install cdsapi and a ~/.cdsapirc file with your API key from the Copernicus Climate Data Store.';
     }
     if (source === 'IFS') {
-      return 'Python script using the ECMWF Open Data client. Requires: pip install ecmwf-opendata. No API key needed — data is freely available. Only the most recent 1-2 IFS cycles are accessible.';
+      return 'Python script using the ECMWF Open Data client. Requires: pip install ecmwf-opendata. No API key needed — data is freely available. Uses 6-hour intervals to match IFS pressure-level availability in Open Data. Only the most recent 1-2 IFS cycles are accessible.';
     }
     return 'Bash script using cURL to download clipped GFS GRIB2 subsets by default, with optional AWS full-file fallback when NOMADS fails. Run with: bash download_gfs.sh';
   }
