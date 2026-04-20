@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WRFlow — WRF Configuration Assistant</title>
+
+  <!-- Tailwind CSS Play CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: ['selector', '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81' },
+            surface: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 700: '#334155', 800: '#1e293b', 900: '#0f172a', 950: '#020617' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236366f1'%3E%3Cpath d='M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z'/%3E%3C/svg%3E">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet Draw CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="bg-surface-50 text-surface-900 dark:bg-surface-950 dark:text-surface-100 min-h-screen flex flex-col transition-colors duration-200">
+
+  <!-- ===== HEADER ===== -->
+  <header class="bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700 px-4 py-3 flex items-center justify-between sticky top-0 z-[1000]">
+    <div class="flex items-center gap-3">
+      <button id="btn-logo-home" class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" title="Go to Domain Setup">
+        <svg class="w-8 h-8 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
+        </svg>
+        <h1 class="text-xl font-bold bg-gradient-to-r from-primary-500 to-primary-700 bg-clip-text text-transparent">WRFlow</h1>
+      </button>
+      <span class="hidden sm:inline text-xs text-surface-400 dark:text-surface-500 border-l border-surface-200 dark:border-surface-700 pl-3 ml-1">WRF Configuration Assistant</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <button id="btn-reset" class="text-xs px-3 py-1.5 rounded-lg border border-surface-200 dark:border-surface-700 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="Reset all settings">
+        <svg class="w-4 h-4 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" /></svg>
+        Reset
+      </button>
+      <button id="btn-theme" class="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="Toggle dark mode">
+        <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" /></svg>
+        <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
+      </button>
+      <a href="https://github.com/ahmetuyuklu/WRFlow" target="_blank" class="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors" title="GitHub">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- ===== MAIN LAYOUT ===== -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- ===== SIDEBAR NAV ===== -->
+    <nav id="sidebar" class="w-64 shrink-0 bg-white dark:bg-surface-900 border-r border-surface-200 dark:border-surface-700 overflow-y-auto hidden lg:block">
+      <div class="p-4 space-y-1">
+        <button class="wizard-step-btn active" data-step="1">
+          <span class="step-num">1</span>
+          <span class="step-label">Domain Setup</span>
+        </button>
+        <button class="wizard-step-btn" data-step="2">
+          <span class="step-num">2</span>
+          <span class="step-label">Time & Data</span>
+        </button>
+        <button class="wizard-step-btn" data-step="3">
+          <span class="step-num">3</span>
+          <span class="step-label">Physics</span>
+        </button>
+        <button class="wizard-step-btn" data-step="4">
+          <span class="step-num">4</span>
+          <span class="step-label">Namelists</span>
+        </button>
+        <button class="wizard-step-btn" data-step="5">
+          <span class="step-num">5</span>
+          <span class="step-label">Scripts</span>
+        </button>
+      </div>
+      <!-- Sidebar summary panel -->
+      <div id="sidebar-summary" class="p-4 border-t border-surface-200 dark:border-surface-700">
+        <h3 class="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-3">Configuration Summary</h3>
+        <div id="summary-content" class="text-xs space-y-2 text-surface-500 dark:text-surface-400">
+          <p class="italic">Draw a domain on the map to begin.</p>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ===== MOBILE STEP TABS ===== -->
+    <div id="mobile-tabs" class="lg:hidden bg-white dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700 flex overflow-x-auto fixed top-[53px] left-0 right-0 z-[999]">
+      <button class="mobile-tab active" data-step="1">1. Domain</button>
+      <button class="mobile-tab" data-step="2">2. Time</button>
+      <button class="mobile-tab" data-step="3">3. Physics</button>
+      <button class="mobile-tab" data-step="4">4. Namelists</button>
+      <button class="mobile-tab" data-step="5">5. Scripts</button>
+    </div>
+
+    <!-- ===== CONTENT AREA ===== -->
+    <main class="flex-1 overflow-y-auto lg:mt-0 mt-10">
+
+      <!-- ========== STEP 1: DOMAIN SETUP ========== -->
+      <section id="step-1" class="wizard-step">
+        <div class="flex flex-col xl:flex-row h-full">
+          <!-- Map -->
+          <div class="xl:flex-1 min-h-[400px] xl:min-h-0 relative">
+            <div id="map" class="absolute inset-0"></div>
+            <!-- Map overlay info -->
+            <div id="map-coords" class="absolute bottom-3 left-3 bg-white/90 dark:bg-surface-900/90 backdrop-blur-sm text-xs px-3 py-1.5 rounded-lg shadow-sm z-[500] font-mono">
+              Lat: --.---- Lon: --.----
+            </div>
+          </div>
+          <!-- Domain config panel -->
+          <div class="xl:w-96 xl:border-l border-t xl:border-t-0 border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 overflow-y-auto">
+            <div class="p-5 space-y-5">
+              <div>
+                <h2 class="text-lg font-semibold mb-1">Domain Configuration</h2>
+                <p class="text-xs text-surface-400">Draw a rectangle on the map to define your simulation domain, or enter coordinates manually.</p>
+              </div>
+
+              <!-- WRF Core -->
+              <div class="space-y-2">
+                <label class="label-text">WRF Core
+                  <span class="tooltip-trigger" data-tooltip="The dynamical core of WRF. ARW (Advanced Research WRF) is the only actively maintained core since WRF v4.">?</span>
+                </label>
+                <select id="wrf-core" class="input-field" disabled>
+                  <option value="ARW" selected>ARW — Advanced Research WRF</option>
+                </select>
+              </div>
+
+              <!-- Map Projection -->
+              <div class="space-y-2">
+                <label class="label-text">Map Projection
+                  <span class="tooltip-trigger" data-tooltip="Lambert is best for mid-latitudes, Mercator for tropics, Polar for high-latitudes, Lat-Lon for global runs.">?</span>
+                </label>
+                <select id="map-proj" class="input-field">
+                  <option value="lambert" selected>Lambert Conformal</option>
+                  <option value="mercator">Mercator</option>
+                  <option value="polar">Polar Stereographic</option>
+                  <option value="lat-lon">Lat-Lon (Cylindrical Equidistant)</option>
+                </select>
+              </div>
+
+              <!-- Resolution -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-2">
+                  <label class="label-text">DX (m)
+                    <span class="tooltip-trigger" data-tooltip="Grid resolution in the west-east direction (meters). NCAR recommends DX = DY.">?</span>
+                  </label>
+                  <input type="number" id="dx" class="input-field" value="9000" min="1000" step="1000">
+                </div>
+                <div class="space-y-2">
+                  <label class="label-text">DY (m)
+                    <span class="tooltip-trigger" data-tooltip="Grid resolution in the south-north direction (meters). NCAR recommends DX = DY.">?</span>
+                  </label>
+                  <input type="number" id="dy" class="input-field" value="9000" min="1000" step="1000">
+                </div>
+              </div>
+
+              <!-- Center coordinates -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-2">
+                  <label class="label-text">Center Lat (ref_lat)</label>
+                  <input type="number" id="ref-lat" class="input-field" step="0.01" placeholder="e.g. 39.00">
+                </div>
+                <div class="space-y-2">
+                  <label class="label-text">Center Lon (ref_lon)</label>
+                  <input type="number" id="ref-lon" class="input-field" step="0.01" placeholder="e.g. 35.00">
+                </div>
+              </div>
+
+              <!-- Grid dimensions -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-2">
+                  <label class="label-text">e_we (W-E grid pts)
+                    <span class="tooltip-trigger" data-tooltip="West-East grid dimension. Minimum 100 recommended. Must be odd+1 for nesting.">?</span>
+                  </label>
+                  <input type="number" id="e-we" class="input-field" min="100" placeholder="auto">
+                </div>
+                <div class="space-y-2">
+                  <label class="label-text">e_sn (S-N grid pts)
+                    <span class="tooltip-trigger" data-tooltip="South-North grid dimension. Minimum 100 recommended.">?</span>
+                  </label>
+                  <input type="number" id="e-sn" class="input-field" min="100" placeholder="auto">
+                </div>
+              </div>
+
+              <!-- True latitudes (Lambert/Polar) -->
+              <div id="truelat-section" class="grid grid-cols-2 gap-3">
+                <div class="space-y-2">
+                  <label class="label-text">truelat1
+                    <span class="tooltip-trigger" data-tooltip="First true latitude for Lambert conformal or Polar stereographic projection.">?</span>
+                  </label>
+                  <input type="number" id="truelat1" class="input-field" step="0.01" placeholder="auto">
+                </div>
+                <div class="space-y-2">
+                  <label class="label-text">truelat2
+                    <span class="tooltip-trigger" data-tooltip="Second true latitude for Lambert conformal projection.">?</span>
+                  </label>
+                  <input type="number" id="truelat2" class="input-field" step="0.01" placeholder="auto">
+                </div>
+              </div>
+
+              <!-- Stand lon -->
+              <div class="space-y-2">
+                <label class="label-text">stand_lon
+                  <span class="tooltip-trigger" data-tooltip="Standard longitude parallel to Y-axis. Set to ref_lon to center your domain.">?</span>
+                </label>
+                <input type="number" id="stand-lon" class="input-field" step="0.01" placeholder="auto (= ref_lon)">
+              </div>
+
+              <!-- Vertical levels -->
+              <div class="space-y-2">
+                <label class="label-text">e_vert (Vertical Levels)
+                  <span class="tooltip-trigger" data-tooltip="Number of vertical (eta) levels. NCAR recommends 35-60. Must be the same for all domains.">?</span>
+                </label>
+                <input type="number" id="e-vert" class="input-field" value="45" min="28" max="100" step="1">
+              </div>
+
+              <!-- Domain list (nesting) -->
+              <div class="border-t border-surface-200 dark:border-surface-700 pt-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-sm font-semibold">Domains</h3>
+                  <button id="btn-add-nest" class="text-xs px-3 py-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
+                    + Add Nest
+                  </button>
+                </div>
+                <div id="domain-list" class="space-y-2">
+                  <!-- d01 is always present -->
+                  <div class="domain-card active" data-domain="1">
+                    <div class="flex items-center justify-between">
+                      <span class="domain-badge" style="background: #4f46e5">d01</span>
+                      <span class="text-xs text-surface-400" id="d01-info">Parent domain</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Navigation -->
+              <div class="flex justify-end pt-2">
+                <button class="btn-next" data-next="2">
+                  Next: Time & Data
+                  <svg class="w-4 h-4 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== STEP 2: TIME & DATA ========== -->
+      <section id="step-2" class="wizard-step hidden">
+        <div class="max-w-3xl mx-auto p-6 space-y-6">
+          <div>
+            <h2 class="text-lg font-semibold mb-1">Time & Data Source</h2>
+            <p class="text-xs text-surface-400">All times are in UTC. Choose your data source and simulation period.</p>
+          </div>
+
+          <!-- Data Source -->
+          <div class="space-y-3">
+            <label class="label-text">Data Source</label>
+            <div class="grid grid-cols-3 gap-3">
+              <label class="data-source-card">
+                <input type="radio" name="data-source" value="GFS" checked class="sr-only peer">
+                <div class="card-selectable peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20">
+                  <div class="font-semibold text-sm">GFS</div>
+                  <div class="text-xs text-surface-400 mt-1">NCEP Global Forecast System</div>
+                  <div class="text-xs text-surface-400">0.25° | 3h interval | up to 16 days</div>
+                </div>
+              </label>
+              <label class="data-source-card">
+                <input type="radio" name="data-source" value="ERA5" class="sr-only peer">
+                <div class="card-selectable peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20">
+                  <div class="font-semibold text-sm">ERA5</div>
+                  <div class="text-xs text-surface-400 mt-1">ECMWF Reanalysis v5</div>
+                  <div class="text-xs text-surface-400">0.25° | 1h interval | Historical only</div>
+                </div>
+              </label>
+              <label class="data-source-card">
+                <input type="radio" name="data-source" value="IFS" class="sr-only peer">
+                <div class="card-selectable peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20">
+                  <div class="font-semibold text-sm">IFS</div>
+                  <div class="text-xs text-surface-400 mt-1">ECMWF Open Data</div>
+                  <div class="text-xs text-surface-400">0.4° | 3h interval | up to 10 days</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Date & Time -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="space-y-2">
+              <label class="label-text">Start Date (UTC)</label>
+              <input type="date" id="start-date" class="input-field">
+            </div>
+            <div class="space-y-2">
+              <label class="label-text">Start Hour (UTC)
+                <span class="tooltip-trigger" data-tooltip="GFS data is available at synoptic hours: 00Z, 06Z, 12Z, 18Z. ERA5 is available at every hour.">?</span>
+              </label>
+              <select id="start-hour" class="input-field">
+                <option value="0">00Z</option>
+                <option value="6">06Z</option>
+                <option value="12" selected>12Z</option>
+                <option value="18">18Z</option>
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label class="label-text">Run Duration (hours)
+                <span class="tooltip-trigger" data-tooltip="Total simulation length. GFS max: 384h (16 days). ERA5: limited by available data.">?</span>
+              </label>
+              <input type="number" id="run-duration" class="input-field" value="24" min="1" max="384" step="1">
+            </div>
+            <div class="space-y-2">
+              <label class="label-text">Start Forecast Hour
+                <span class="tooltip-trigger" data-tooltip="GFS forecast hour to begin downloading from. Default 0 (analysis). Set to e.g. 24 to download only f024–f(024+duration).">?</span>
+              </label>
+              <input type="number" id="start-fh" class="input-field" value="0" min="0" max="384" step="3">
+            </div>
+          </div>
+
+          <!-- Computed values display -->
+          <div class="bg-surface-100 dark:bg-surface-800 rounded-xl p-4 space-y-2">
+            <h3 class="text-xs font-semibold text-surface-400 uppercase tracking-wider">Computed Values</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div>
+                <div class="text-xs text-surface-400">run_days</div>
+                <div id="computed-run-days" class="font-mono font-semibold">1</div>
+              </div>
+              <div>
+                <div class="text-xs text-surface-400">run_hours</div>
+                <div id="computed-run-hours" class="font-mono font-semibold">0</div>
+              </div>
+              <div>
+                <div class="text-xs text-surface-400">interval_seconds</div>
+                <div id="computed-interval" class="font-mono font-semibold">10800</div>
+              </div>
+              <div>
+                <div class="text-xs text-surface-400">End Date/Time</div>
+                <div id="computed-end-date" class="font-mono font-semibold text-xs">--</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Warnings -->
+          <div id="time-warnings" class="hidden">
+            <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-300">
+              <svg class="w-5 h-5 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+              <span id="time-warning-text"></span>
+            </div>
+          </div>
+
+          <!-- Navigation -->
+          <div class="flex justify-between pt-2">
+            <button class="btn-prev" data-prev="1">
+              <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
+              Back
+            </button>
+            <button class="btn-next" data-next="3">
+              Next: Physics
+              <svg class="w-4 h-4 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== STEP 3: PHYSICS ========== -->
+      <section id="step-3" class="wizard-step hidden">
+        <div class="max-w-4xl mx-auto p-6 space-y-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-lg font-semibold mb-1">Physics Configuration</h2>
+              <p class="text-xs text-surface-400">Select parameterization schemes for your simulation. Hover the <span class="tooltip-trigger inline-scale" data-tooltip="">?</span> icons for NCAR recommendations.</p>
+            </div>
+            <button id="btn-defaults" class="text-xs px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors">
+              Recommended Defaults
+            </button>
+          </div>
+
+          <!-- Physics warnings -->
+          <div id="physics-warnings" class="hidden">
+            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-sm text-red-700 dark:text-red-300 space-y-1">
+              <div class="font-semibold">
+                <svg class="w-5 h-5 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                Compatibility Issues
+              </div>
+              <ul id="physics-warning-list" class="list-disc pl-6 space-y-1"></ul>
+            </div>
+          </div>
+
+          <!-- Resolution hint -->
+          <div id="resolution-hint" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300">
+            <svg class="w-5 h-5 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+            <span id="resolution-hint-text">Set your domain resolution first to get grid-spacing recommendations.</span>
+          </div>
+
+          <!-- Physics scheme groups -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <!-- Microphysics -->
+            <div class="physics-card">
+              <label class="label-text">Microphysics (mp_physics)
+                <span class="tooltip-trigger" data-tooltip="Controls cloud and precipitation processes. Use simpler schemes (WSM3/5) for coarse grids, complex schemes (Thompson, Morrison) for high-res.">?</span>
+              </label>
+              <select id="mp-physics" class="input-field mt-2" data-param="mp_physics"></select>
+            </div>
+
+            <!-- Longwave Radiation -->
+            <div class="physics-card">
+              <label class="label-text">Longwave Radiation (ra_lw_physics)
+                <span class="tooltip-trigger" data-tooltip="Computes clear-sky and cloud upward/downward radiation fluxes. NCAR recommends RRTMG (option 4). Use same option for all domains.">?</span>
+              </label>
+              <select id="ra-lw-physics" class="input-field mt-2" data-param="ra_lw_physics"></select>
+            </div>
+
+            <!-- Shortwave Radiation -->
+            <div class="physics-card">
+              <label class="label-text">Shortwave Radiation (ra_sw_physics)
+                <span class="tooltip-trigger" data-tooltip="Computes clear-sky and cloudy solar fluxes. NCAR recommends RRTMG (option 4). Use same option for all domains.">?</span>
+              </label>
+              <select id="ra-sw-physics" class="input-field mt-2" data-param="ra_sw_physics"></select>
+            </div>
+
+            <!-- Surface Layer -->
+            <div class="physics-card">
+              <label class="label-text">Surface Layer (sf_sfclay_physics)
+                <span class="tooltip-trigger" data-tooltip="Computes friction velocities and exchange coefficients. Must be compatible with PBL scheme selection.">?</span>
+              </label>
+              <select id="sf-sfclay-physics" class="input-field mt-2" data-param="sf_sfclay_physics"></select>
+            </div>
+
+            <!-- Land Surface -->
+            <div class="physics-card">
+              <label class="label-text">Land Surface Model (sf_surface_physics)
+                <span class="tooltip-trigger" data-tooltip="Provides heat and moisture fluxes over land and sea-ice. Must be set before running real.exe. Changing later requires re-running real.exe.">?</span>
+              </label>
+              <select id="sf-surface-physics" class="input-field mt-2" data-param="sf_surface_physics"></select>
+            </div>
+
+            <!-- PBL -->
+            <div class="physics-card">
+              <label class="label-text">Planetary Boundary Layer (bl_pbl_physics)
+                <span class="tooltip-trigger" data-tooltip="Distributes surface fluxes and models boundary layer growth. Used when dx > 500m. Must be compatible with surface layer scheme.">?</span>
+              </label>
+              <select id="bl-pbl-physics" class="input-field mt-2" data-param="bl_pbl_physics"></select>
+            </div>
+
+            <!-- Cumulus -->
+            <div class="physics-card md:col-span-2">
+              <label class="label-text">Cumulus Parameterization (cu_physics)
+                <span class="tooltip-trigger" data-tooltip="Required when dx > 10km. Not needed for dx < 4km. Between 4-10km, use scale-aware schemes like GF (3) or MSKF (11).">?</span>
+              </label>
+              <select id="cu-physics" class="input-field mt-2" data-param="cu_physics"></select>
+            </div>
+          </div>
+
+          <!-- Navigation -->
+          <div class="flex justify-between pt-2">
+            <button class="btn-prev" data-prev="2">
+              <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
+              Back
+            </button>
+            <button class="btn-next" data-next="4">
+              Next: Namelists
+              <svg class="w-4 h-4 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== STEP 4: NAMELISTS ========== -->
+      <section id="step-4" class="wizard-step hidden">
+        <div class="max-w-5xl mx-auto p-6 space-y-6">
+          <div>
+            <h2 class="text-lg font-semibold mb-1">Namelist Files</h2>
+            <p class="text-xs text-surface-400">Generated from your configuration. Review, copy, or download.</p>
+          </div>
+
+          <!-- Tabs -->
+          <div class="flex gap-1 border-b border-surface-200 dark:border-surface-700">
+            <button class="namelist-tab active" data-tab="wps">namelist.wps</button>
+            <button class="namelist-tab" data-tab="input">namelist.input</button>
+          </div>
+
+          <!-- namelist.wps content -->
+          <div id="tab-wps" class="namelist-content">
+            <div class="relative">
+              <div class="absolute top-3 right-3 flex gap-2 z-10">
+                <button class="btn-copy" data-target="namelist-wps-output" title="Copy to clipboard">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
+                </button>
+                <button class="btn-download" data-filename="namelist.wps" data-target="namelist-wps-output" title="Download file">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                </button>
+              </div>
+              <pre id="namelist-wps-output" class="code-output">Loading...</pre>
+            </div>
+          </div>
+
+          <!-- namelist.input content -->
+          <div id="tab-input" class="namelist-content hidden">
+            <div class="relative">
+              <div class="absolute top-3 right-3 flex gap-2 z-10">
+                <button class="btn-copy" data-target="namelist-input-output" title="Copy to clipboard">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
+                </button>
+                <button class="btn-download" data-filename="namelist.input" data-target="namelist-input-output" title="Download file">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                </button>
+              </div>
+              <pre id="namelist-input-output" class="code-output">Loading...</pre>
+            </div>
+          </div>
+
+          <!-- Advanced Settings -->
+          <div class="border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden">
+            <button id="btn-advanced-toggle" class="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold bg-surface-50 dark:bg-surface-800/50 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">
+              <span>Advanced Settings</span>
+              <svg id="advanced-toggle-icon" class="w-4 h-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            <div id="advanced-panel" class="hidden px-4 pb-4 pt-3 space-y-4 bg-white dark:bg-surface-900">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="space-y-1">
+                  <label class="label-text text-xs">Vertical Levels (e_vert) <span class="tooltip-trigger" data-tooltip="Number of vertical eta levels. 45 is standard. More = finer vertical resolution but slower.">?</span></label>
+                  <input type="number" id="adv-e-vert" class="input-field text-xs" min="10" max="100" value="45">
+                </div>
+                <div class="space-y-1">
+                  <label class="label-text text-xs">p_top_requested (Pa) <span class="tooltip-trigger" data-tooltip="Model top pressure in Pascals. 5000 Pa = 50 hPa.">?</span></label>
+                  <input type="number" id="adv-p-top" class="input-field text-xs" min="500" max="50000" step="500" value="5000">
+                </div>
+                <div class="space-y-1">
+                  <label class="label-text text-xs">Feedback <span class="tooltip-trigger" data-tooltip="1 = two-way nesting (nested domain influences parent), 0 = one-way.">?</span></label>
+                  <select id="adv-feedback" class="input-field text-xs">
+                    <option value="1" selected>1 &mdash; Two-way</option>
+                    <option value="0">0 &mdash; One-way</option>
+                  </select>
+                </div>
+                <div class="space-y-1">
+                  <label class="label-text text-xs">Restart Interval (min) <span class="tooltip-trigger" data-tooltip="How often WRF writes restart files. 1440 = daily.">?</span></label>
+                  <input type="number" id="adv-restart-interval" class="input-field text-xs" min="60" step="60" value="1440">
+                </div>
+                <div class="space-y-1">
+                  <label class="label-text text-xs">w_damping <span class="tooltip-trigger" data-tooltip="Vertical velocity damping. 1=On (recommended for stability).">?</span></label>
+                  <select id="adv-w-damping" class="input-field text-xs">
+                    <option value="1" selected>1 &mdash; On (rec.)</option>
+                    <option value="0">0 &mdash; Off</option>
+                  </select>
+                </div>
+                <div class="space-y-1">
+                  <label class="label-text text-xs">damp_opt <span class="tooltip-trigger" data-tooltip="Upper-level damping type. 3 = Rayleigh relaxation (recommended).">?</span></label>
+                  <select id="adv-damp-opt" class="input-field text-xs">
+                    <option value="0">0 &mdash; No damping</option>
+                    <option value="1">1 &mdash; Top u/v</option>
+                    <option value="2">2 &mdash; Top u/v/w</option>
+                    <option value="3" selected>3 &mdash; Rayleigh (rec.)</option>
+                  </select>
+                </div>
+                <div class="space-y-1">
+                  <label class="label-text text-xs">dampcoef <span class="tooltip-trigger" data-tooltip="Rayleigh damping coefficient. 0.01–0.5. Default 0.2.">?</span></label>
+                  <input type="number" id="adv-damp-coef" class="input-field text-xs" min="0.01" max="0.5" step="0.01" value="0.2">
+                </div>
+                <div class="space-y-1">
+                  <label class="label-text text-xs">diff_opt <span class="tooltip-trigger" data-tooltip="Horizontal diffusion. 1 = simple (recommended), 2 = full deformation.">?</span></label>
+                  <select id="adv-diff-opt" class="input-field text-xs">
+                    <option value="1" selected>1 &mdash; Simple (rec.)</option>
+                    <option value="2">2 &mdash; Full deformation</option>
+                  </select>
+                </div>
+                <div class="space-y-1">
+                  <label class="label-text text-xs">History Output (min) <span class="tooltip-trigger" data-tooltip="How often WRF writes output files, in minutes. Leave blank for auto (180 min for dx≥9km, 60 for dx≥3km, 15 for finer).">?</span></label>
+                  <input type="number" id="adv-history-interval" class="input-field text-xs" min="1" max="10080" placeholder="auto">
+                </div>
+            </div>
+          </div>
+
+          <!-- Navigation -->
+          <div class="flex justify-between pt-2">
+            <button class="btn-prev" data-prev="3">
+              <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
+              Back
+            </button>
+            <button class="btn-next" data-next="5">
+              Next: Scripts
+              <svg class="w-4 h-4 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== STEP 5: SCRIPTS ========== -->
+      <section id="step-5" class="wizard-step hidden">
+        <div class="max-w-5xl mx-auto p-6 space-y-6">
+          <div>
+            <h2 class="text-lg font-semibold mb-1">Download & Run Scripts</h2>
+            <p class="text-xs text-surface-400">Auto-generated scripts for data acquisition and WRF execution.</p>
+          </div>
+
+          <!-- Tabs -->
+          <div class="flex gap-1 border-b border-surface-200 dark:border-surface-700">
+            <button class="script-tab active" data-tab="download-script">Download Script</button>
+            <button class="script-tab" data-tab="run-script">Run Script</button>
+          </div>
+
+          <!-- WRF Paths Configuration -->
+          <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 space-y-3">
+            <h3 class="text-sm font-semibold text-blue-700 dark:text-blue-300">WRF Installation Paths &amp; Runtime</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div class="space-y-2">
+                <label class="label-text text-xs">WPS_DIR</label>
+                <input type="text" id="wps-dir" class="input-field text-xs" placeholder="/path/to/WPS" value="/path/to/WPS">
+              </div>
+              <div class="space-y-2">
+                <label class="label-text text-xs">WRF_DIR</label>
+                <input type="text" id="wrf-dir" class="input-field text-xs" placeholder="/path/to/WRF" value="/path/to/WRF">
+              </div>
+              <div class="space-y-2">
+                <label class="label-text text-xs">WPS_GEOG_DIR <span class="tooltip-trigger" data-tooltip="Path to the WPS geographical data (WPS_GEOG). Used as geog_data_path in namelist.wps.">?</span></label>
+                <input type="text" id="adv-geog-path" class="input-field text-xs" placeholder="/path/to/WPS_GEOG/" value="/path/to/WPS_GEOG/">
+              </div>
+            </div>
+            <div class="space-y-2 pt-1 border-t border-blue-200 dark:border-blue-800">
+              <div class="flex flex-wrap items-end gap-6">
+                <div class="space-y-1">
+                  <label class="label-text text-xs">Scheduler Mode</label>
+                  <div class="flex gap-4">
+                    <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="radio" name="scheduler" value="local" checked class="accent-primary-500"> Local / Auto
+                    </label>
+                    <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="radio" name="scheduler" value="mpi" class="accent-primary-500"> MPI
+                    </label>
+                    <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="radio" name="scheduler" value="slurm" class="accent-primary-500"> Slurm
+                    </label>
+                  </div>
+                </div>
+                <div class="space-y-1" id="num-procs-group">
+                  <label class="label-text text-xs">CPU Processes (NUM_PROCS)
+                    <span class="tooltip-trigger" data-tooltip="Number of MPI tasks to use for wrf.exe. Set to number of CPU cores available.">?</span>
+                  </label>
+                  <input type="number" id="num-procs" class="input-field text-xs w-28" min="1" max="9999" value="4">
+                </div>
+              </div>
+              <div id="slurm-options" class="hidden">
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Partition</label>
+                    <input type="text" id="slurm-partition" class="input-field text-xs" placeholder="compute" value="compute">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Nodes</label>
+                    <input type="number" id="slurm-nodes" class="input-field text-xs" min="1" value="1">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Tasks per Node</label>
+                    <input type="number" id="slurm-ntasks-per-node" class="input-field text-xs" min="1" value="32">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Walltime (HH:MM:SS)</label>
+                    <input type="text" id="slurm-walltime" class="input-field text-xs" placeholder="24:00:00" value="24:00:00">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">Account (optional)</label>
+                    <input type="text" id="slurm-account" class="input-field text-xs" placeholder="">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Download script content -->
+          <div id="tab-download-script" class="script-content">
+            <div class="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-4 text-sm">
+              <svg class="w-5 h-5 text-blue-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+              <p id="download-script-info" class="text-blue-700 dark:text-blue-300"></p>
+            </div>
+            <div class="relative">
+              <div class="absolute top-3 right-3 flex gap-2 z-10">
+                <button class="btn-copy" data-target="download-script-output" title="Copy to clipboard">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
+                </button>
+                <button class="btn-download" data-target="download-script-output" title="Download file">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                </button>
+              </div>
+              <pre id="download-script-output" class="code-output">Loading...</pre>
+            </div>
+          </div>
+
+          <!-- Run script content -->
+          <div id="tab-run-script" class="script-content hidden">
+            <div class="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-4 text-sm">
+              <svg class="w-5 h-5 text-blue-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+              <p class="text-blue-700 dark:text-blue-300">This script runs the WRF Preprocessing System (WPS) and WRF model sequentially with error checking. Set the <code class="bg-blue-100 dark:bg-blue-800/50 px-1.5 py-0.5 rounded text-xs">WPS_DIR</code> and <code class="bg-blue-100 dark:bg-blue-800/50 px-1.5 py-0.5 rounded text-xs">WRF_DIR</code> paths before running.</p>
+            </div>
+            <div class="relative">
+              <div class="absolute top-3 right-3 flex gap-2 z-10">
+                <button class="btn-copy" data-target="run-script-output" title="Copy to clipboard">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" /></svg>
+                </button>
+                <button class="btn-download" data-filename="run_wrf.sh" data-target="run-script-output" title="Download file">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                </button>
+              </div>
+              <pre id="run-script-output" class="code-output">Loading...</pre>
+            </div>
+          </div>
+
+          <!-- Download All -->
+          <div class="flex justify-center">
+            <button id="btn-download-all" class="btn-next flex items-center gap-2" title="Download all configuration files">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+              Download All Files
+            </button>
+          </div>
+
+          <!-- Navigation -->
+          <div class="flex justify-start pt-2">
+            <button class="btn-prev" data-prev="4">
+              <svg class="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
+              Back
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ===== TOOLTIP POPOVER ===== -->
+  <div id="tooltip-popover" class="tooltip-popover hidden"></div>
+
+  <!-- ===== NEST MODAL ===== -->
+  <div id="nest-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-4">Add Nested Domain</h3>
+      <div class="space-y-4">
+        <div class="space-y-2">
+          <label class="label-text">Parent Domain</label>
+          <select id="nest-parent" class="input-field"></select>
+        </div>
+        <div class="space-y-2">
+          <label class="label-text">Grid Ratio
+            <span class="tooltip-trigger" data-tooltip="Recommended ratios are 3:1 or 5:1 (odd numbers). Custom ratios allowed but must be odd.">?</span>
+          </label>
+          <div class="flex gap-2">
+            <button class="flex-1 px-3 py-2 rounded-lg border-2 border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-sm font-medium cursor-pointer" data-ratio="3">3:1</button>
+            <button class="flex-1 px-3 py-2 rounded-lg border-2 border-surface-200 dark:border-surface-700 text-sm font-medium cursor-pointer" data-ratio="5">5:1</button>
+            <input type="number" id="nest-ratio-custom" class="flex-1 input-field" placeholder="Custom" min="1" step="2" title="Must be an odd number">
+          </div>
+          <input type="hidden" id="nest-ratio" value="3">
+        </div>
+        <p class="text-xs text-surface-400">After adding, draw the nest boundary on the map inside its parent domain.</p>
+      </div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button id="nest-cancel" class="btn-prev">Cancel</button>
+        <button id="nest-confirm" class="btn-next">Add Domain</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SCRIPTS ===== -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+  <script src="js/utils.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/domain.js"></script>
+  <script src="js/datetime.js"></script>
+  <script src="js/namelist-wps.js"></script>
+  <script src="js/namelist-input.js"></script>
+  <script src="js/download-scripts.js"></script>
+  <script src="js/run-script.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

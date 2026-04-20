@@ -1,0 +1,28 @@
+# OS artifacts
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Dependencies (not used, but just in case)
+node_modules/
+
+# Logs
+*.log
+bugs-todo.md    
+MANUAL_TEST_CHECKLIST.md
+
+# AI tracking
+.copilot/
+.cursor/
