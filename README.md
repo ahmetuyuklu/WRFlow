@@ -44,10 +44,10 @@ WRFlow walks you through configuring a WRF simulation in 5 steps and generates e
 | **ERA5** | 0.25° | 1h | Historical | Python + CDS API |
 | **IFS** | 0.4° | 3h | 10 days | Python + ecmwf-opendata (no API key) |
 
-- Configurable start forecast hour (e.g., download only f024–f048)
-- ±3° bounding box subsetting for GFS
-- All variables and levels included by default
-- Automatic dual-source fallback (NOMADS ↔ AWS)
+**Notes:**
+- **GFS**: All variables and levels; ±3° bounding box clipping; configurable start forecast hour (e.g., f024–f048 only)
+- **IFS**: Open Data includes core fields (pressure levels, 2m/10m vars, skin temp, snow); soil moisture/temperature not available; auto-fallback to ERA5 for extended periods
+- **ERA5**: Requires CDS API key (~5 min setup); full historical coverage
 
 ### Physics Configuration
 - 50+ parameterization schemes across 7 categories (microphysics, radiation, surface layer, land surface, PBL, cumulus)

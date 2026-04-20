@@ -62,6 +62,13 @@ const WRFDownloadScripts = (() => {
 
 set -euo pipefail
 
+# Check for required commands
+for cmd in curl wget; do
+  if ! command -v \$cmd &> /dev/null; then
+    echo "WARNING: \$cmd not found. Install with: apt-get install curl wget (Linux) or brew install curl wget (macOS)"
+  fi
+done
+
 # Configuration
 OUTPUT_DIR="./gfs_data"
 DATE="${dateDir}"
@@ -237,8 +244,17 @@ Prerequisites:
     key: <YOUR-API-KEY>
 """
 
-import cdsapi
+import sys
+import subprocess
 import os
+
+# Ensure cdsapi is installed
+try:
+    import cdsapi
+except ImportError:
+    print("Installing cdsapi...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "cdsapi", "-q"])
+    import cdsapi
 
 OUTPUT_DIR = "./era5_data"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -327,7 +343,16 @@ Note: Only the most recent 1-2 IFS cycles are available via Open Data.
 """
 
 import os
-from ecmwf.opendata import Client
+import sys
+import subprocess
+
+# Ensure ecmwf-opendata is installed
+try:
+    from ecmwf.opendata import Client
+except ImportError:
+    print("Installing ecmwf-opendata...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "ecmwf-opendata", "-q"])
+    from ecmwf.opendata import Client
 
 OUTPUT_DIR = "./ifs_data"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -357,13 +382,12 @@ c.retrieve(
 print("  -> ifs_pl.grib2 done")
 
 # ===== Single-level (surface) data =====
+# Only includes parameters available in ECMWF Open Data
 SFC_VARS = [
     "2t", "2d", "10u", "10v",    # 2m temp/dewpoint, 10m winds
     "msl", "sp",                 # mean-sea-level & surface pressure
     "skt",                       # skin temperature
-    "stl1", "stl2", "stl3", "stl4",     # soil temperature levels
-    "swvl1", "swvl2", "swvl3", "swvl4", # soil moisture levels
-    "sd", "ci", "sst", "lsm",    # snow depth, sea ice, SST, land-sea mask
+    "sd", "lsm",                 # snow depth, land-sea mask
     "z",                         # surface geopotential
 ]
 
