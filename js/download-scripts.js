@@ -3,6 +3,7 @@
  * GFS (cURL) and ERA5 (Python/cdsapi) data download script generation.
  */
 const WRFDownloadScripts = (() => {
+  const DOWNLOAD_AREA_BUFFER_DEG = 5;
 
   // ERA5 pressure-level variables needed for WRF
   const ERA5_PL_VARS = [
@@ -34,7 +35,7 @@ const WRFDownloadScripts = (() => {
     const bbox = WRFUtils.bufferedBBox(
       state.domains[0].bounds.south, state.domains[0].bounds.north,
       state.domains[0].bounds.west, state.domains[0].bounds.east,
-      3 // ±3° buffer
+      DOWNLOAD_AREA_BUFFER_DEG
     );
 
     const startDate = state.startDate;
@@ -55,7 +56,7 @@ const WRFDownloadScripts = (() => {
 # WRFlow — GFS Data Download Script
 # Generated: ${new Date().toISOString().slice(0, 19)}Z
 # Source: NCEP GFS 0.25° (GRIB Filter)
-# Domain bounding box (with ±3° buffer):
+# Domain bounding box (with ±${DOWNLOAD_AREA_BUFFER_DEG}° buffer):
 #   South: ${bottomlat}  North: ${toplat}
 #   West:  ${leftlon}  East:  ${rightlon}
 # =============================================================================
@@ -203,7 +204,7 @@ fi
     const bbox = WRFUtils.bufferedBBox(
       state.domains[0].bounds.south, state.domains[0].bounds.north,
       state.domains[0].bounds.west, state.domains[0].bounds.east,
-      3
+      DOWNLOAD_AREA_BUFFER_DEG
     );
 
     const startDate = state.startDate;
@@ -233,7 +234,7 @@ fi
 WRFlow — ERA5 Data Download Script
 Generated: ${new Date().toISOString().slice(0, 19)}Z
 Source: ECMWF ERA5 Reanalysis (CDS API)
-Domain bounding box (with ±3° buffer):
+Domain bounding box (with ±${DOWNLOAD_AREA_BUFFER_DEG}° buffer):
   North: ${bbox.north.toFixed(2)}  South: ${bbox.south.toFixed(2)}
   West:  ${bbox.west.toFixed(2)}  East:  ${bbox.east.toFixed(2)}
 
