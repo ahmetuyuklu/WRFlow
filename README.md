@@ -23,7 +23,7 @@ WRFlow walks you through configuring a WRF simulation in 5 steps and generates e
 |--------|-------------|
 | `namelist.wps` | WPS configuration (share, geogrid, ungrib, metgrid) |
 | `namelist.input` | WRF configuration (time_control, domains, physics, dynamics, bdy_control) |
-| `download_gfs.sh` / `download_era5.py` / `download_ifs.py` | Data acquisition script for your chosen source |
+| `download_gfs.sh` / `download_era5.py` | Data acquisition script for your chosen source |
 | `run_wrf.sh` / `run_wrf.sbatch` | Full WPS→WRF pipeline with error checking |
 
 ---
@@ -40,14 +40,12 @@ WRFlow walks you through configuring a WRF simulation in 5 steps and generates e
 
 | Source | Resolution | Interval | Range | Method |
 |--------|-----------|----------|-------|--------|
-| **GFS** | 0.25° | 3h | 16 days | cURL + NOMADS GRIB Filter (clipped) with AWS S3 fallback |
+| **GFS** | 0.25° | 1h (0–120h) / 3h (0–384h) | 16 days | cURL + NOMADS GRIB Filter (clipped) with AWS S3 fallback |
 | **ERA5** | 0.25° | 1h | Historical | Python + CDS API |
-| **IFS** | 0.4° | 6h | 10 days | Python + ecmwf-opendata (no API key) |
 
 **Notes:**
-- **GFS**: All variables and levels; ±3° bounding box clipping; configurable start forecast hour (e.g., f024–f048 only)
-- **IFS**: Open Data includes core fields (pressure levels, 2m/10m vars, skin temp, snow); soil moisture/temperature not available; auto-fallback to ERA5 for extended periods
-- **ERA5**: Requires CDS API key (~5 min setup); full historical coverage
+- **GFS**: Selectable interval: 1h mode downloads f000–f120 hourly (5-day runs); 3h mode downloads up to f384 (16-day runs). ±3° bounding box clipping. Configurable start forecast hour.
+- **ERA5**: Requires CDS API key (~5 min setup); full historical coverage.
 
 ### Physics Configuration
 - 50+ parameterization schemes across 7 categories (microphysics, radiation, surface layer, land surface, PBL, cumulus)
@@ -83,7 +81,7 @@ WRFlow walks you through configuring a WRF simulation in 5 steps and generates e
 
 1. Open **[WRFlow](https://ahmetuyuklu.github.io/WRFlow)** in your browser
 2. **Step 1 — Domain:** Draw your simulation area, set DX/DY and projection
-3. **Step 2 — Time & Data:** Pick a data source (GFS/ERA5/IFS), start date, and duration
+3. **Step 2 — Time & Data:** Pick a data source (GFS/ERA5), start date, and duration
 4. **Step 3 — Physics:** Choose parameterization schemes or use defaults
 5. **Step 4 — Namelists:** Review `namelist.wps` and `namelist.input`
 6. **Step 5 — Scripts:** Set WPS/WRF paths, scheduler mode, then download everything
@@ -104,7 +102,7 @@ WRFlow/
 │   ├── physics.js          # Physics scheme catalog + compatibility
 │   ├── namelist-wps.js     # namelist.wps generator
 │   ├── namelist-input.js   # namelist.input generator
-│   ├── download-scripts.js # GFS/ERA5/IFS download script generators
+│   ├── download-scripts.js # GFS/ERA5 download script generators
 │   ├── run-script.js       # run_wrf.sh / .sbatch generator
 │   └── utils.js            # Shared formatting helpers
 ├── README.md

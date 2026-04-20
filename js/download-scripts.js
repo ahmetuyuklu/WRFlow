@@ -74,8 +74,8 @@ OUTPUT_DIR="./gfs_data"
 DATE="${dateDir}"
 CYCLE="${startHour}"
 START_FH=${state.startForecastHour || 0}
-MAX_FH=${(state.startForecastHour || 0) + state.durationHours}
-INTERVAL=3
+MAX_FH=${Math.min((state.startForecastHour || 0) + state.durationHours, (state.gfsInterval || 3) === 1 ? 120 : 384)}
+INTERVAL=${state.gfsInterval || 3}
 
 # Create output directory
 mkdir -p "\${OUTPUT_DIR}"
@@ -242,6 +242,9 @@ Prerequisites:
   Create ~/.cdsapirc with your CDS API key:
     url: https://cds.climate.copernicus.eu/api
     key: <YOUR-API-KEY>
+  Install ecCodes tools (needed to fix GRIB2 packing for ungrib.exe):
+    Ubuntu/Debian: sudo apt install -y libeccodes-tools
+    Conda:         conda install -c conda-forge eccodes
 """
 
 import sys
@@ -258,6 +261,27 @@ except ImportError:
 
 OUTPUT_DIR = "./era5_data"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Helper: convert GRIB2 packing to grid_simple so ungrib.exe can read it.
+# ECMWF uses AEC/CCSDS compression (DRS Template 42) which older WPS builds
+# do not support. grib_set re-packs the file in-place using simple packing.
+# ---------------------------------------------------------------------------
+def fix_grib_packing(path):
+    tmp = path + ".tmp"
+    result = subprocess.run(
+        ["grib_set", "-s", "packingType=grid_simple", path, tmp],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"  WARNING: grib_set failed for {path}:")
+        print(f"    {result.stderr.strip()}")
+        print("  Make sure libeccodes-tools is installed and try again.")
+        if os.path.exists(tmp):
+            os.remove(tmp)
+    else:
+        os.replace(tmp, path)
+        print(f"  Packing fixed: {os.path.basename(path)}")
 
 c = cdsapi.Client()
 
@@ -287,6 +311,8 @@ ${hours.map(h => `            "${h}"`).join(',\n')},
 )
 
 print("Pressure level data downloaded.")
+print("Converting packing for ungrib.exe compatibility...")
+fix_grib_packing(os.path.join(OUTPUT_DIR, "era5_pressure_levels.grib"))
 
 # ----- Single (Surface) Level Data -----
 print("Downloading ERA5 single level data...")
@@ -311,104 +337,11 @@ ${hours.map(h => `            "${h}"`).join(',\n')},
 )
 
 print("Single level data downloaded.")
+print("Converting packing for ungrib.exe compatibility...")
+fix_grib_packing(os.path.join(OUTPUT_DIR, "era5_single_levels.grib"))
+
 print(f"All ERA5 data saved to {OUTPUT_DIR}/")
-`;
-
-    return script;
-  }
-
-  function generateIFS(state) {
-    const startDate = state.startDate;
-    const dateStr = WRFUtils.toGFSDateDir(startDate); // YYYYMMDD
-    const cycleHour = startDate.getUTCHours(); // 0 or 12
-    const maxFH = state.durationHours;
-    const interval = 6;
-    const steps = [];
-    for (let fh = 0; fh <= maxFH; fh += interval) steps.push(fh);
-
-    const script = `#!/usr/bin/env python3
-"""
-WRFlow — ECMWF Open Data IFS Download Script
-Generated: ${new Date().toISOString().slice(0, 19)}Z
-Source: ECMWF Open Data IFS (ecmwf-opendata)
-Cycle: ${dateStr} ${String(cycleHour).padStart(2, '0')}Z
-Forecast hours: 0 to ${maxFH}, every ${interval}h
-
-Prerequisites:
-  pip install ecmwf-opendata
-  No API key required — ECMWF Open Data is freely accessible.
-
-Note: Only the most recent 1-2 IFS cycles are available via Open Data.
-      For older dates, use ERA5 reanalysis instead.
-  Pressure-level fields are available every 6 hours in Open Data,
-  so this script uses a 6-hour interval for both PL and SFC files.
-"""
-
-import os
-import sys
-import subprocess
-
-# Ensure ecmwf-opendata is installed
-try:
-    from ecmwf.opendata import Client
-except ImportError:
-    print("Installing ecmwf-opendata...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "ecmwf-opendata", "-q"])
-    from ecmwf.opendata import Client
-
-OUTPUT_DIR = "./ifs_data"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-c = Client("ecmwf")
-
-DATE   = "${dateStr}"
-CYCLE  = ${cycleHour}
-STEPS  = ${JSON.stringify(steps)}
-
-# ===== Pressure-level data =====
-# Variables required by WPS/ungrib for IFS input
-PL_VARS   = ["z", "t", "u", "v", "r", "q"]
-PL_LEVELS = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50, 10]
-
-print("Downloading IFS pressure-level data ...")
-c.retrieve(
-    date=DATE,
-    time=CYCLE,
-    step=STEPS,
-    type="fc",
-    levtype="pl",
-    levelist=PL_LEVELS,
-    param=PL_VARS,
-    target=os.path.join(OUTPUT_DIR, "ifs_pl.grib2"),
-)
-print("  -> ifs_pl.grib2 done")
-
-# ===== Single-level (surface) data =====
-# Only includes parameters available in ECMWF Open Data
-SFC_VARS = [
-    "2t", "2d", "10u", "10v",    # 2m temp/dewpoint, 10m winds
-    "msl", "sp",                 # mean-sea-level & surface pressure
-    "skt",                       # skin temperature
-    "sd", "lsm",                 # snow depth, land-sea mask
-    "z",                         # surface geopotential
-]
-
-print("Downloading IFS single-level (surface) data ...")
-c.retrieve(
-    date=DATE,
-    time=CYCLE,
-    step=STEPS,
-    type="fc",
-    levtype="sfc",
-    param=SFC_VARS,
-    target=os.path.join(OUTPUT_DIR, "ifs_sfc.grib2"),
-)
-print("  -> ifs_sfc.grib2 done")
-
-print(f"\\nAll IFS data saved to {OUTPUT_DIR}/")
-print("  Files: ifs_pl.grib2  ifs_sfc.grib2")
-print("  Interval: 6h (00, 06, 12, 18, ...)")
-print("Use Vtable.ECMWF in WPS ungrib for IFS GRIB2 files.")
+print("You can now run ungrib.exe. Link or copy the .grib files to your WPS run directory.")
 `;
 
     return script;
@@ -416,22 +349,17 @@ print("Use Vtable.ECMWF in WPS ungrib for IFS GRIB2 files.")
 
   function generate(state) {
     if (state.dataSource === 'ERA5') return generateERA5(state);
-    if (state.dataSource === 'IFS')  return generateIFS(state);
     return generateGFS(state);
   }
 
   function getFilename(source) {
     if (source === 'ERA5') return 'download_era5.py';
-    if (source === 'IFS')  return 'download_ifs.py';
     return 'download_gfs.sh';
   }
 
   function getInfo(source) {
     if (source === 'ERA5') {
       return 'Python script using the CDS API. Requires: pip install cdsapi and a ~/.cdsapirc file with your API key from the Copernicus Climate Data Store.';
-    }
-    if (source === 'IFS') {
-      return 'Python script using the ECMWF Open Data client. Requires: pip install ecmwf-opendata. No API key needed — data is freely available. Uses 6-hour intervals to match IFS pressure-level availability in Open Data. Only the most recent 1-2 IFS cycles are accessible.';
     }
     return 'Bash script using cURL to download clipped GFS GRIB2 subsets by default, with optional AWS full-file fallback when NOMADS fails. Run with: bash download_gfs.sh';
   }

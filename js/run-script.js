@@ -7,13 +7,10 @@ const WRFRunScript = (() => {
   function generate(state) {
     let vtable = 'Vtable.GFS';
     if (state.dataSource === 'ERA5') vtable = 'Vtable.ERA-interim.pl';
-    if (state.dataSource === 'IFS')  vtable = 'Vtable.ECMWF';
 
     const dataDir = state.dataSource === 'ERA5' ? './era5_data'
-                  : state.dataSource === 'IFS'  ? './ifs_data'
                   : './gfs_data';
     const gribPattern = state.dataSource === 'ERA5' ? '"${DATA_DIR}"/*.grib'
-                      : state.dataSource === 'IFS'  ? '"${DATA_DIR}"/ifs_*.grib2'
                       : '"${DATA_DIR}"/gfs.*';
     const numDomains = state.domains.length;
     const numProcs = state.numProcs || 4;

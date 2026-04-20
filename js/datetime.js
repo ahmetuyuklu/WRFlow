@@ -11,7 +11,7 @@ const WRFDateTime = (() => {
       intervalSeconds: 10800, // 3 hours
       synopticHours: [0, 6, 12, 18],
       allHours: false,
-      description: 'NCEP Global Forecast System — 0.25° resolution, 3h interval, up to 16-day forecast'
+      description: 'NCEP Global Forecast System — 0.25° resolution; 1h intervals (0–120h) or 3h intervals (0–384h)'
     },
     ERA5: {
       name: 'ERA5',
@@ -20,14 +20,6 @@ const WRFDateTime = (() => {
       synopticHours: null,    // all hours available
       allHours: true,
       description: 'ECMWF Reanalysis v5 — 0.25° resolution, 1h interval, historical data only'
-    },
-    IFS: {
-      name: 'IFS',
-      maxDurationHours: 240,  // 10 days
-      intervalSeconds: 21600, // 6 hours
-      synopticHours: [0, 12], // 00Z and 12Z only
-      allHours: false,
-      description: 'ECMWF Open Data IFS — 0.4° resolution, 6h interval (PL-constrained), up to 10-day forecast'
     }
   };
 
@@ -79,21 +71,6 @@ const WRFDateTime = (() => {
       }
       if (durationHours > src.maxDurationHours) {
         warnings.push(`GFS forecast data is available up to ${src.maxDurationHours} hours (16 days). Duration exceeds this limit.`);
-      }
-    }
-
-    if (source === 'IFS') {
-      const start = new Date(startDate + 'T00:00:00Z');
-      const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 3600 * 1000);
-      if (start < twoDaysAgo) {
-        warnings.push('ECMWF Open Data IFS is typically only available for the most recent 2 cycles. Older dates may not be accessible.');
-      }
-      const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-      if (start > todayUtc) {
-        warnings.push('IFS forecast cycles are not available for future UTC dates. Choose today or a recent past date.');
-      }
-      if (durationHours > src.maxDurationHours) {
-        warnings.push(`IFS Open Data is available up to ${src.maxDurationHours} hours (10 days). Duration exceeds this limit.`);
       }
     }
 

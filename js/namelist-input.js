@@ -10,7 +10,6 @@ const WRFNamelistInput = (() => {
     const K = WRFUtils.nlKey;
     const J = WRFUtils.nlJoin;
     const R = WRFUtils.repeatVal;
-
     const dur = WRFDateTime.splitDuration(state.durationHours);
     const dc = WRFDateTime.getDateComponents(
       state.startDateStr, state.startHour, state.durationHours, n
@@ -28,8 +27,8 @@ const WRFNamelistInput = (() => {
     const eVert = state.eVert || 45;
     const pTop = state.pTop || 5000;
     // num_metgrid_levels must match met_em vertical dimension.
-    // GFS 0.25° full column = 34 levels; ERA5 = 38; IFS = 137.
-    const numMetgridLevels = state.dataSource === 'ERA5' ? 38 : state.dataSource === 'IFS' ? 137 : 34;
+    // GFS 0.25° full column = 34 levels; ERA5 = 38.
+    const numMetgridLevels = state.dataSource === 'ERA5' ? 38 : 34;
     const numSoilLayers = WRFPhysics.getSoilLayers(state.physics.sf_surface_physics);
     const feedback = state.feedback !== undefined ? state.feedback : 1;
     const wDamping = state.wDamping !== undefined ? state.wDamping : 1;

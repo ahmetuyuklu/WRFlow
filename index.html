@@ -268,13 +268,13 @@
           <!-- Data Source -->
           <div class="space-y-3">
             <label class="label-text">Data Source</label>
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid grid-cols-2 gap-3">
               <label class="data-source-card">
                 <input type="radio" name="data-source" value="GFS" checked class="sr-only peer">
                 <div class="card-selectable peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20">
                   <div class="font-semibold text-sm">GFS</div>
                   <div class="text-xs text-surface-400 mt-1">NCEP Global Forecast System</div>
-                  <div class="text-xs text-surface-400">0.25° | 3h interval | up to 16 days</div>
+                  <div class="text-xs text-surface-400">0.25° | 1h (0–120h) or 3h (0–384h)</div>
                 </div>
               </label>
               <label class="data-source-card">
@@ -283,14 +283,6 @@
                   <div class="font-semibold text-sm">ERA5</div>
                   <div class="text-xs text-surface-400 mt-1">ECMWF Reanalysis v5</div>
                   <div class="text-xs text-surface-400">0.25° | 1h interval | Historical only</div>
-                </div>
-              </label>
-              <label class="data-source-card">
-                <input type="radio" name="data-source" value="IFS" class="sr-only peer">
-                <div class="card-selectable peer-checked:border-primary-500 peer-checked:bg-primary-50 dark:peer-checked:bg-primary-900/20">
-                  <div class="font-semibold text-sm">IFS</div>
-                  <div class="text-xs text-surface-400 mt-1">ECMWF Open Data</div>
-                  <div class="text-xs text-surface-400">0.4° | 3h interval | up to 10 days</div>
                 </div>
               </label>
             </div>
@@ -319,11 +311,20 @@
               </label>
               <input type="number" id="run-duration" class="input-field" value="24" min="1" max="384" step="1">
             </div>
-            <div class="space-y-2">
+            <div id="start-fh-row" class="space-y-2">
               <label class="label-text">Start Forecast Hour
                 <span class="tooltip-trigger" data-tooltip="GFS forecast hour to begin downloading from. Default 0 (analysis). Set to e.g. 24 to download only f024–f(024+duration).">?</span>
               </label>
               <input type="number" id="start-fh" class="input-field" value="0" min="0" max="384" step="3">
+            </div>
+            <div id="gfs-interval-row" class="space-y-2">
+              <label class="label-text">GFS Forecast Interval
+                <span class="tooltip-trigger" data-tooltip="GFS v16+ provides hourly files for hours 0–120 and 3-hourly files for 120–384. Use 1h for higher temporal resolution (max 120h run). Use 3h for longer runs up to 384h (16 days).">?</span>
+              </label>
+              <select id="gfs-interval" class="input-field">
+                <option value="3">3h — up to 384h (16 days)</option>
+                <option value="1">1h — up to 120h (5 days)</option>
+              </select>
             </div>
           </div>
 

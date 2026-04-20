@@ -9,7 +9,6 @@ const WRFNamelistWPS = (() => {
     const n = d.length;
     const K = WRFUtils.nlKey;
     const J = WRFUtils.nlJoin;
-
     const startDates = d.map(() => `'${WRFUtils.toWRFDate(state.startDate)}'`);
     const endDates = d.map(() => `'${WRFUtils.toWRFDate(state.endDate)}'`);
 

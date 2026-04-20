@@ -30,6 +30,7 @@ const WRFApp = (() => {
     truelat2: 60,
     standLon: 35,
     dataSource: 'GFS',
+    gfsInterval: 3,
     startDateStr: '',
     startHour: 12,
     durationHours: 24,
@@ -76,6 +77,7 @@ const WRFApp = (() => {
       const s = JSON.parse(raw);
       s.startDate = s.startDate ? new Date(s.startDate) : null;
       s.endDate = s.endDate ? new Date(s.endDate) : null;
+      if (!WRFDateTime.DATA_SOURCES[s.dataSource]) s.dataSource = 'GFS';
       Object.assign(state, s);
       return true;
     } catch (e) { return false; }
@@ -539,6 +541,17 @@ const WRFApp = (() => {
     document.getElementById('run-duration').value = state.durationHours;
     document.getElementById('start-fh').value = state.startForecastHour || 0;
 
+    // GFS interval selector
+    const gfsIntervalSel = document.getElementById('gfs-interval');
+    if (gfsIntervalSel) {
+      gfsIntervalSel.value = String(state.gfsInterval || 3);
+      gfsIntervalSel.addEventListener('change', (e) => {
+        state.gfsInterval = parseInt(e.target.value);
+        updateTimeConstraints();
+        recalcTime();
+      });
+    }
+
     // Data source radio buttons
     document.querySelectorAll('input[name="data-source"]').forEach(radio => {
       radio.checked = radio.value === state.dataSource;
@@ -574,6 +587,14 @@ const WRFApp = (() => {
     const src = WRFDateTime.DATA_SOURCES[state.dataSource];
     const hourSelect = document.getElementById('start-hour');
     const durationInput = document.getElementById('run-duration');
+    const gfsIntervalRow = document.getElementById('gfs-interval-row');
+    const startFhRow = document.getElementById('start-fh-row');
+    const startFhInput = document.getElementById('start-fh');
+
+    // GFS-only fields: hide for ERA5
+    const isGFS = state.dataSource === 'GFS';
+    if (gfsIntervalRow) gfsIntervalRow.style.display = isGFS ? '' : 'none';
+    if (startFhRow) startFhRow.style.display = isGFS ? '' : 'none';
 
     // Update available hours
     const hours = WRFDateTime.getStartHours(state.dataSource);
@@ -591,15 +612,26 @@ const WRFApp = (() => {
     }
     hourSelect.value = state.startHour;
 
+    // GFS: interval and max duration depend on gfsInterval selection
+    let maxDuration = src.maxDurationHours;
+    let intervalSec = src.intervalSeconds;
+    if (state.dataSource === 'GFS' && state.gfsInterval === 1) {
+      maxDuration = 120;
+      intervalSec = 3600;
+    }
+
+    // Update start-fh step to match interval
+    if (startFhInput) startFhInput.step = state.dataSource === 'GFS' ? (state.gfsInterval || 3) : 1;
+
     // Duration max
-    durationInput.max = src.maxDurationHours;
-    if (state.durationHours > src.maxDurationHours) {
-      state.durationHours = src.maxDurationHours;
+    durationInput.max = maxDuration;
+    if (state.durationHours > maxDuration) {
+      state.durationHours = maxDuration;
       durationInput.value = state.durationHours;
     }
 
     // Interval
-    state.intervalSeconds = src.intervalSeconds;
+    state.intervalSeconds = intervalSec;
   }
 
   function recalcTime() {
