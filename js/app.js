@@ -48,8 +48,20 @@ const WRFApp = (() => {
     dampOpt: 3,
     dampCoef: 0.2,
     diffOpt: 1,
+    kmOpt: 4,
+    diff6thOpt: 0,
+    zdamp: 5000,
     geogDataPath: '/path/to/WPS_GEOG/',
     restartInterval: 1440,
+    framesPerOutfile: 1000,
+    debugLevel: 0,
+    intervalSecondsOverride: null,
+    etaLevels: '',
+    // Advanced Physics
+    shcuPhysics: 0,
+    sfUrbanPhysics: 0,
+    sfLakePhysics: 0,
+    sstUpdate: 0,
     // Scheduler / runtime
     scheduler: 'local',
     numProcs: 4,
@@ -117,7 +129,7 @@ const WRFApp = (() => {
     // Step-specific init
     if (step === 1) WRFMap.invalidateSize();
     if (step === 3) updatePhysicsUI();
-    if (step === 4) updateNamelists();
+    if (step === 4) { syncAdvancedUI(); updateNamelists(); }
     if (step === 5) updateScripts();
   }
 
@@ -762,6 +774,16 @@ const WRFApp = (() => {
       icon.style.transform = panel.classList.contains('hidden') ? '' : 'rotate(180deg)';
     });
 
+    // Advanced panel tab switching
+    document.querySelectorAll('.adv-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.adv-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.adv-tab-content').forEach(c => c.classList.add('hidden'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.advTab).classList.remove('hidden');
+      });
+    });
+
     // Advanced settings inputs — each regenerates namelists on change
     const bindAdv = (id, key, transform) => {
       const el = document.getElementById(id);
@@ -772,16 +794,55 @@ const WRFApp = (() => {
         saveState();
       });
     };
-    bindAdv('adv-e-vert',          'eVert',           Number);
-    bindAdv('adv-p-top',           'pTop',            Number);
-    bindAdv('adv-feedback',        'feedback',        Number);
-    bindAdv('adv-restart-interval','restartInterval', Number);
-    bindAdv('adv-w-damping',       'wDamping',        Number);
-    bindAdv('adv-damp-opt',        'dampOpt',         Number);
-    bindAdv('adv-damp-coef',       'dampCoef',        parseFloat);
-    bindAdv('adv-diff-opt',        'diffOpt',         Number);
-    bindAdv('adv-history-interval', 'historyInterval', v => v ? Number(v) : null);
-    bindAdv('adv-geog-path',       'geogDataPath',    v => v || '/path/to/WPS_GEOG/');
+    bindAdv('adv-e-vert',            'eVert',                   Number);
+    bindAdv('adv-p-top',             'pTop',                    Number);
+    bindAdv('adv-feedback',          'feedback',                Number);
+    bindAdv('adv-restart-interval',  'restartInterval',         Number);
+    bindAdv('adv-w-damping',         'wDamping',                Number);
+    bindAdv('adv-damp-opt',          'dampOpt',                 Number);
+    bindAdv('adv-damp-coef',         'dampCoef',                parseFloat);
+    bindAdv('adv-diff-opt',          'diffOpt',                 Number);
+    bindAdv('adv-km-opt',            'kmOpt',                   Number);
+    bindAdv('adv-diff-6th-opt',      'diff6thOpt',              Number);
+    bindAdv('adv-zdamp',             'zdamp',                   Number);
+    bindAdv('adv-history-interval',  'historyInterval',         v => v ? Number(v) : null);
+    bindAdv('adv-interval-seconds',  'intervalSecondsOverride', v => v ? Number(v) : null);
+    bindAdv('adv-frames-per-outfile','framesPerOutfile',        Number);
+    bindAdv('adv-debug-level',       'debugLevel',              Number);
+    bindAdv('adv-eta-levels',        'etaLevels',               v => v.trim());
+    bindAdv('adv-shcu-physics',      'shcuPhysics',             Number);
+    bindAdv('adv-sf-urban-physics',  'sfUrbanPhysics',          Number);
+    bindAdv('adv-sf-lake-physics',   'sfLakePhysics',           Number);
+    bindAdv('adv-sst-update',        'sstUpdate',               Number);
+    bindAdv('adv-geog-path',         'geogDataPath',            v => v || '/path/to/WPS_GEOG/');
+  }
+
+  function syncAdvancedUI() {
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (!el || val === null || val === undefined) return;
+      el.value = val;
+    };
+    setVal('adv-e-vert',             state.eVert);
+    setVal('adv-p-top',              state.pTop);
+    setVal('adv-feedback',           state.feedback);
+    setVal('adv-restart-interval',   state.restartInterval);
+    setVal('adv-w-damping',          state.wDamping);
+    setVal('adv-damp-opt',           state.dampOpt);
+    setVal('adv-damp-coef',          state.dampCoef);
+    setVal('adv-diff-opt',           state.diffOpt);
+    setVal('adv-km-opt',             state.kmOpt);
+    setVal('adv-diff-6th-opt',       state.diff6thOpt);
+    setVal('adv-zdamp',              state.zdamp);
+    setVal('adv-history-interval',   state.historyInterval || '');
+    setVal('adv-interval-seconds',   state.intervalSecondsOverride || '');
+    setVal('adv-frames-per-outfile', state.framesPerOutfile);
+    setVal('adv-debug-level',        state.debugLevel);
+    setVal('adv-eta-levels',         state.etaLevels || '');
+    setVal('adv-shcu-physics',       state.shcuPhysics);
+    setVal('adv-sf-urban-physics',   state.sfUrbanPhysics);
+    setVal('adv-sf-lake-physics',    state.sfLakePhysics);
+    setVal('adv-sst-update',         state.sstUpdate);
   }
 
   function updateNamelists() {

@@ -35,7 +35,18 @@ const WRFNamelistInput = (() => {
     const dampOpt = state.dampOpt !== undefined ? state.dampOpt : 3;
     const dampCoef = state.dampCoef !== undefined ? state.dampCoef.toFixed(2) : '0.20';
     const diffOpt = state.diffOpt !== undefined ? state.diffOpt : 1;
+    const kmOpt = state.kmOpt !== undefined ? state.kmOpt : 4;
+    const diff6thOpt = state.diff6thOpt !== undefined ? state.diff6thOpt : 0;
+    const zdamp = state.zdamp !== undefined ? state.zdamp : 5000;
     const restartInterval = state.restartInterval || 1440;
+    const framesPerOutfile = state.framesPerOutfile !== undefined ? state.framesPerOutfile : 1000;
+    const debugLevel = state.debugLevel !== undefined ? state.debugLevel : 0;
+    const intervalSec = state.intervalSecondsOverride || state.intervalSeconds;
+    const shcuPhysics = state.shcuPhysics !== undefined ? state.shcuPhysics : 0;
+    const sfUrbanPhysics = state.sfUrbanPhysics !== undefined ? state.sfUrbanPhysics : 0;
+    const sfLakePhysics = state.sfLakePhysics !== undefined ? state.sfLakePhysics : 0;
+    const sstUpdate = state.sstUpdate !== undefined ? state.sstUpdate : 0;
+    const etaLevels = (state.etaLevels || '').trim();
 
     let out = '';
 
@@ -57,16 +68,17 @@ const WRFNamelistInput = (() => {
     out += K('end_hour') + `= ${J(dc.end_hour.map(v => WRFUtils.pad(v, 2)))},\n`;
     out += K('end_minute') + `= ${R('00', n)},\n`;
     out += K('end_second') + `= ${R('00', n)},\n`;
-    out += K('interval_seconds') + `= ${state.intervalSeconds},\n`;
+    out += K('interval_seconds') + `= ${intervalSec},\n`;
     out += K('input_from_file') + `= ${R('.true.', n)},\n`;
     out += K('history_interval') + `= ${J(historyInterval)},\n`;
-    out += K('frames_per_outfile') + `= ${R(1000, n)},\n`;
+    out += K('frames_per_outfile') + `= ${R(framesPerOutfile, n)},\n`;
     out += K('restart') + '= .false.,\n';
     out += K('restart_interval') + `= ${restartInterval},\n`;
     out += K('io_form_history') + '= 2,\n';
     out += K('io_form_restart') + '= 2,\n';
     out += K('io_form_input') + '= 2,\n';
     out += K('io_form_boundary') + '= 2,\n';
+    if (debugLevel > 0) out += K('debug_level') + `= ${debugLevel},\n`;
     out += '/\n\n';
 
     // &domains
@@ -78,6 +90,7 @@ const WRFNamelistInput = (() => {
     out += K('e_vert') + `= ${R(eVert, n)},\n`;
     out += K('p_top_requested') + `= ${pTop},\n`;
     out += K('num_metgrid_levels') + `= ${numMetgridLevels},\n`;
+    if (etaLevels) out += K('eta_levels') + `= ${etaLevels},\n`;
     out += K('dx') + `= ${J(d.map(dom => dom.dx.toFixed(1)))},\n`;
     out += K('dy') + `= ${J(d.map(dom => dom.dy.toFixed(1)))},\n`;
     out += K('grid_id') + `= ${J(d.map((_, i) => i + 1))},\n`;
@@ -113,19 +126,22 @@ const WRFNamelistInput = (() => {
     out += K('surface_input_source') + '= 3,\n';
     out += K('num_land_cat') + '= 21,\n';
     out += K('num_soil_layers') + `= ${numSoilLayers},\n`;
-    out += K('sf_urban_physics') + `= ${R(0, n)},\n`;
+    out += K('sf_urban_physics') + `= ${R(sfUrbanPhysics, n)},\n`;
+    if (sfLakePhysics > 0) out += K('sf_lake_physics') + `= ${R(sfLakePhysics, n)},\n`;
+    if (shcuPhysics > 0)   out += K('shcu_physics')    + `= ${R(shcuPhysics, n)},\n`;
+    if (sstUpdate > 0)     out += K('sst_update')      + `= ${sstUpdate},\n`;
     out += '/\n\n';
 
     // &dynamics
     out += '&dynamics\n';
     out += K('w_damping') + `= ${wDamping},\n`;
     out += K('diff_opt') + `= ${R(diffOpt, n)},\n`;
-    out += K('km_opt') + `= ${R(4, n)},\n`;
-    out += K('diff_6th_opt') + `= ${R(0, n)},\n`;
+    out += K('km_opt') + `= ${R(kmOpt, n)},\n`;
+    out += K('diff_6th_opt') + `= ${R(diff6thOpt, n)},\n`;
     out += K('diff_6th_factor') + `= ${R('0.12', n)},\n`;
     out += K('base_temp') + '= 290.,\n';
     out += K('damp_opt') + `= ${dampOpt},\n`;
-    out += K('zdamp') + `= ${R('5000.', n)},\n`;
+    out += K('zdamp') + `= ${R(zdamp + '.', n)},\n`;
     out += K('dampcoef') + `= ${R(dampCoef, n)},\n`;
     out += K('khdif') + `= ${R(0, n)},\n`;
     out += K('kvdif') + `= ${R(0, n)},\n`;

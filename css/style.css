@@ -374,8 +374,8 @@ html, body {
   overflow-y: auto;
 }
 
-/* ===== Namelist/Script Tabs ===== */
-.namelist-tab, .script-tab {
+/* ===== Namelist/Script/Advanced Tabs ===== */
+.namelist-tab, .script-tab, .adv-tab {
   padding: 0.5rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 500;
@@ -387,21 +387,21 @@ html, body {
   background: transparent;
   cursor: pointer;
 }
-.namelist-tab:hover, .script-tab:hover {
+.namelist-tab:hover, .script-tab:hover, .adv-tab:hover {
   color: var(--surface-600);
   background-color: var(--surface-100);
 }
-[data-theme="dark"] .namelist-tab:hover, [data-theme="dark"] .script-tab:hover {
+[data-theme="dark"] .namelist-tab:hover, [data-theme="dark"] .script-tab:hover, [data-theme="dark"] .adv-tab:hover {
   color: var(--surface-300);
   background-color: var(--surface-800);
 }
-.namelist-tab.active, .script-tab.active {
+.namelist-tab.active, .script-tab.active, .adv-tab.active {
   color: var(--primary-600);
   background-color: var(--primary-50);
   border-color: var(--surface-200) var(--surface-200) transparent;
   font-weight: 600;
 }
-[data-theme="dark"] .namelist-tab.active, [data-theme="dark"] .script-tab.active {
+[data-theme="dark"] .namelist-tab.active, [data-theme="dark"] .script-tab.active, [data-theme="dark"] .adv-tab.active {
   color: var(--primary-400);
   background-color: rgba(49, 46, 129, 0.3);
   border-color: var(--surface-700) var(--surface-700) transparent;

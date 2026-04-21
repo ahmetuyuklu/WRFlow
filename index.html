@@ -546,58 +546,160 @@
               <span>Advanced Settings</span>
               <svg id="advanced-toggle-icon" class="w-4 h-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
             </button>
-            <div id="advanced-panel" class="hidden px-4 pb-4 pt-3 space-y-4 bg-white dark:bg-surface-900">
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div class="space-y-1">
-                  <label class="label-text text-xs">Vertical Levels (e_vert) <span class="tooltip-trigger" data-tooltip="Number of vertical eta levels. 45 is standard. More = finer vertical resolution but slower.">?</span></label>
-                  <input type="number" id="adv-e-vert" class="input-field text-xs" min="10" max="100" value="45">
+            <div id="advanced-panel" class="hidden bg-white dark:bg-surface-900">
+
+              <!-- Advanced tab bar -->
+              <div class="flex gap-1 border-b border-surface-200 dark:border-surface-700 px-4 pt-3">
+                <button class="adv-tab active" data-adv-tab="adv-physics">Physics</button>
+                <button class="adv-tab" data-adv-tab="adv-dynamics">Dynamics</button>
+                <button class="adv-tab" data-adv-tab="adv-timeio">Time &amp; I/O</button>
+                <button class="adv-tab" data-adv-tab="adv-domain">Domain &amp; Grid</button>
+              </div>
+
+              <!-- TAB 1: Advanced Physics -->
+              <div id="adv-physics" class="adv-tab-content px-4 pb-4 pt-3">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">shcu_physics <span class="tooltip-trigger" data-tooltip="Independent shallow convection scheme (not tied to deep convection). 0=Off. 2=UW/Park-Bretherton (CESM). 3=GRIMS (couples to YSU PBL). 5=Deng (MYNN/MYJ only, v4.1+).">?</span></label>
+                    <select id="adv-shcu-physics" class="input-field text-xs">
+                      <option value="0" selected>0 &mdash; Off</option>
+                      <option value="2">2 &mdash; UW (Park/Bretherton)</option>
+                      <option value="3">3 &mdash; GRIMS</option>
+                      <option value="5">5 &mdash; Deng (MYNN/MYJ)</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">sf_urban_physics <span class="tooltip-trigger" data-tooltip="Urban canopy model (Noah LSM only). 0=Off. 1=Single-layer UCM. 2=Multi-layer BEP (MYJ/BouLac/YSU PBL only). 3=BEM (MYJ/BouLac/YSU PBL only).">?</span></label>
+                    <select id="adv-sf-urban-physics" class="input-field text-xs">
+                      <option value="0" selected>0 &mdash; Off</option>
+                      <option value="1">1 &mdash; Single-layer UCM</option>
+                      <option value="2">2 &mdash; BEP</option>
+                      <option value="3">3 &mdash; BEM</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">sf_lake_physics <span class="tooltip-trigger" data-tooltip="Lake model. 1=On (CLM lake scheme). Requires lake category in geogrid data. Lake depth defaults to 50 m if not in input.">?</span></label>
+                    <select id="adv-sf-lake-physics" class="input-field text-xs">
+                      <option value="0" selected>0 &mdash; Off</option>
+                      <option value="1">1 &mdash; On</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">sst_update <span class="tooltip-trigger" data-tooltip="Update SST, sea ice, vegetation fraction, and albedo from time-varying input (wrflowinp). Required for long simulations. Also set io_form_auxinput4=2 and auxinput4_interval in &amp;time_control.">?</span></label>
+                    <select id="adv-sst-update" class="input-field text-xs">
+                      <option value="0" selected>0 &mdash; Off</option>
+                      <option value="1">1 &mdash; On</option>
+                    </select>
+                  </div>
                 </div>
-                <div class="space-y-1">
-                  <label class="label-text text-xs">p_top_requested (Pa) <span class="tooltip-trigger" data-tooltip="Model top pressure in Pascals. 5000 Pa = 50 hPa.">?</span></label>
-                  <input type="number" id="adv-p-top" class="input-field text-xs" min="500" max="50000" step="500" value="5000">
+              </div>
+
+              <!-- TAB 2: Dynamics & Diffusion -->
+              <div id="adv-dynamics" class="adv-tab-content hidden px-4 pb-4 pt-3">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">km_opt <span class="tooltip-trigger" data-tooltip="Eddy coefficient option. 1=Constant (set khdif/kvdif). 2=1.5-order TKE closure (3D, dx≤2km). 3=Smagorinsky 3D (dx≤2km). 4=2D Smagorinsky (recommended for real-data with PBL).">?</span></label>
+                    <select id="adv-km-opt" class="input-field text-xs">
+                      <option value="1">1 &mdash; Constant</option>
+                      <option value="2">2 &mdash; 1.5-order TKE</option>
+                      <option value="3">3 &mdash; Smagorinsky 3D</option>
+                      <option value="4" selected>4 &mdash; 2D Smag. (rec.)</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">diff_opt <span class="tooltip-trigger" data-tooltip="Turbulence and mixing option. 1=Simple diffusion along coordinate surfaces (recommended with PBL). 2=Full metric-term diffusion in physical space (for LES / no-PBL runs).">?</span></label>
+                    <select id="adv-diff-opt" class="input-field text-xs">
+                      <option value="0">0 &mdash; Off</option>
+                      <option value="1" selected>1 &mdash; Simple (rec.)</option>
+                      <option value="2">2 &mdash; Full</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">diff_6th_opt <span class="tooltip-trigger" data-tooltip="6th-order horizontal hyper-diffusion to filter short-wave numerical noise. 0=Off. 1=Simple (not recommended). 2=Positive-definite (recommended if enabling).">?</span></label>
+                    <select id="adv-diff-6th-opt" class="input-field text-xs">
+                      <option value="0" selected>0 &mdash; Off</option>
+                      <option value="1">1 &mdash; On</option>
+                      <option value="2">2 &mdash; Prohibit up-gradient</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">damp_opt <span class="tooltip-trigger" data-tooltip="Upper-level damping. 0=Off. 1=Diffusive damping (dampcoef ~0.01–0.1). 2=Rayleigh relaxation (dampcoef is inverse time scale, e.g. 0.003). 3=Rayleigh relaxation for real-data (dampcoef ~0.2, recommended).">?</span></label>
+                    <select id="adv-damp-opt" class="input-field text-xs">
+                      <option value="0">0 &mdash; Off</option>
+                      <option value="1">1 &mdash; With diffusion</option>
+                      <option value="2">2 &mdash; Rayleigh (inv. timescale)</option>
+                      <option value="3" selected>3 &mdash; Rayleigh (rec.)</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">w_damping <span class="tooltip-trigger" data-tooltip="Vertical velocity damping for operational robustness. Dampens only strong updraft cores, negligible effect on results. 1=On (recommended).">?</span></label>
+                    <select id="adv-w-damping" class="input-field text-xs">
+                      <option value="0">0 &mdash; Off</option>
+                      <option value="1" selected>1 &mdash; On (rec.)</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">zdamp (m) <span class="tooltip-trigger" data-tooltip="Depth of the damping layer from the model top, in metres. Default 5000 m. Only used when damp_opt &gt; 0.">?</span></label>
+                    <input type="number" id="adv-zdamp" class="input-field text-xs" min="500" max="20000" step="500" value="5000">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">dampcoef <span class="tooltip-trigger" data-tooltip="Damping coefficient. For damp_opt=3 (recommended): ~0.2. For damp_opt=1: ~0.01–0.1. For damp_opt=2: inverse time scale ~0.003 s⁻¹.">?</span></label>
+                    <input type="number" id="adv-damp-coef" class="input-field text-xs" min="0.001" max="1.0" step="0.01" value="0.2">
+                  </div>
                 </div>
-                <div class="space-y-1">
-                  <label class="label-text text-xs">Feedback <span class="tooltip-trigger" data-tooltip="1 = two-way nesting (nested domain influences parent), 0 = one-way.">?</span></label>
-                  <select id="adv-feedback" class="input-field text-xs">
-                    <option value="1" selected>1 &mdash; Two-way</option>
-                    <option value="0">0 &mdash; One-way</option>
-                  </select>
+              </div>
+
+              <!-- TAB 3: Time & I/O Control -->
+              <div id="adv-timeio" class="adv-tab-content hidden px-4 pb-4 pt-3">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">interval_seconds <span class="tooltip-trigger" data-tooltip="Time interval between incoming lateral boundary condition files (seconds). Leave blank to use the auto value from your data source (ERA5=21600, GFS-3h=10800, GFS-1h=3600).">?</span></label>
+                    <input type="number" id="adv-interval-seconds" class="input-field text-xs" min="3600" step="3600" placeholder="auto">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">history_interval (min) <span class="tooltip-trigger" data-tooltip="How often WRF writes wrfout files, in minutes. Leave blank for auto (180 min for dx≥9km, 60 for dx≥3km, 15 for finer grids).">?</span></label>
+                    <input type="number" id="adv-history-interval" class="input-field text-xs" min="1" max="10080" placeholder="auto">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">frames_per_outfile <span class="tooltip-trigger" data-tooltip="Number of output times stored per wrfout file. Default 1000 (effectively one large file per domain). Set to 1 to get one file per output time.">?</span></label>
+                    <input type="number" id="adv-frames-per-outfile" class="input-field text-xs" min="1" max="9999" value="1000">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">debug_level <span class="tooltip-trigger" data-tooltip="WRF debug verbosity. 0=Off (recommended). Higher values (50, 100, 200) add diagnostic print-outs — can make log files very large and may cause crashes. Use only for troubleshooting.">?</span></label>
+                    <input type="number" id="adv-debug-level" class="input-field text-xs" min="0" max="1000" step="50" value="0">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">restart_interval (min) <span class="tooltip-trigger" data-tooltip="How often WRF writes restart files, in minutes. 1440 = daily.">?</span></label>
+                    <input type="number" id="adv-restart-interval" class="input-field text-xs" min="60" step="60" value="1440">
+                  </div>
                 </div>
-                <div class="space-y-1">
-                  <label class="label-text text-xs">Restart Interval (min) <span class="tooltip-trigger" data-tooltip="How often WRF writes restart files. 1440 = daily.">?</span></label>
-                  <input type="number" id="adv-restart-interval" class="input-field text-xs" min="60" step="60" value="1440">
+              </div>
+
+              <!-- TAB 4: Domain & Grid -->
+              <div id="adv-domain" class="adv-tab-content hidden px-4 pb-4 pt-3">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">e_vert <span class="tooltip-trigger" data-tooltip="Number of vertical eta levels. 45 is standard. More levels = finer vertical resolution but slower runtime.">?</span></label>
+                    <input type="number" id="adv-e-vert" class="input-field text-xs" min="10" max="100" value="45">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">p_top_requested (Pa) <span class="tooltip-trigger" data-tooltip="Model top pressure in Pascals. 5000 Pa = 50 hPa (standard). Use 1000 Pa for deep atmosphere / climate runs.">?</span></label>
+                    <input type="number" id="adv-p-top" class="input-field text-xs" min="500" max="50000" step="500" value="5000">
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">feedback <span class="tooltip-trigger" data-tooltip="Nesting feedback. 1=Two-way (nested domain influences parent; smooth_option applied). 0=One-way (no influence upward).">?</span></label>
+                    <select id="adv-feedback" class="input-field text-xs">
+                      <option value="1" selected>1 &mdash; Two-way</option>
+                      <option value="0">0 &mdash; One-way</option>
+                    </select>
+                  </div>
+                  <div class="space-y-1 sm:col-span-1">
+                    <label class="label-text text-xs">eta_levels <span class="tooltip-trigger" data-tooltip="Optional: explicit comma-separated eta level values from 1.000 (surface) to 0.000 (model top). Overrides e_vert if provided. Must start at 1.000 and end at 0.000.">?</span></label>
+                    <textarea id="adv-eta-levels" class="input-field text-xs font-mono" rows="2" style="resize:vertical" placeholder="1.000, 0.993, 0.983, …, 0.000"></textarea>
+                  </div>
                 </div>
-                <div class="space-y-1">
-                  <label class="label-text text-xs">w_damping <span class="tooltip-trigger" data-tooltip="Vertical velocity damping. 1=On (recommended for stability).">?</span></label>
-                  <select id="adv-w-damping" class="input-field text-xs">
-                    <option value="1" selected>1 &mdash; On (rec.)</option>
-                    <option value="0">0 &mdash; Off</option>
-                  </select>
-                </div>
-                <div class="space-y-1">
-                  <label class="label-text text-xs">damp_opt <span class="tooltip-trigger" data-tooltip="Upper-level damping type. 3 = Rayleigh relaxation (recommended).">?</span></label>
-                  <select id="adv-damp-opt" class="input-field text-xs">
-                    <option value="0">0 &mdash; No damping</option>
-                    <option value="1">1 &mdash; Top u/v</option>
-                    <option value="2">2 &mdash; Top u/v/w</option>
-                    <option value="3" selected>3 &mdash; Rayleigh (rec.)</option>
-                  </select>
-                </div>
-                <div class="space-y-1">
-                  <label class="label-text text-xs">dampcoef <span class="tooltip-trigger" data-tooltip="Rayleigh damping coefficient. 0.01–0.5. Default 0.2.">?</span></label>
-                  <input type="number" id="adv-damp-coef" class="input-field text-xs" min="0.01" max="0.5" step="0.01" value="0.2">
-                </div>
-                <div class="space-y-1">
-                  <label class="label-text text-xs">diff_opt <span class="tooltip-trigger" data-tooltip="Horizontal diffusion. 1 = simple (recommended), 2 = full deformation.">?</span></label>
-                  <select id="adv-diff-opt" class="input-field text-xs">
-                    <option value="1" selected>1 &mdash; Simple (rec.)</option>
-                    <option value="2">2 &mdash; Full deformation</option>
-                  </select>
-                </div>
-                <div class="space-y-1">
-                  <label class="label-text text-xs">History Output (min) <span class="tooltip-trigger" data-tooltip="How often WRF writes output files, in minutes. Leave blank for auto (180 min for dx≥9km, 60 for dx≥3km, 15 for finer).">?</span></label>
-                  <input type="number" id="adv-history-interval" class="input-field text-xs" min="1" max="10080" placeholder="auto">
-                </div>
+              </div>
+
             </div>
           </div>
 
