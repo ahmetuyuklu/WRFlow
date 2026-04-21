@@ -243,6 +243,23 @@ html, body {
   border: none;
   cursor: pointer;
 }
+/* Intro page feature badges */
+.feature-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background-color: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+[data-theme="dark"] .feature-pill {
+  background-color: rgba(67,56,202,0.15);
+  color: #a5b4fc;
+  border-color: rgba(99,102,241,0.3);
+}
 .btn-prev {
   padding: 0.625rem 1.25rem;
   border-radius: 0.5rem;

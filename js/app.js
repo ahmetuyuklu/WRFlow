@@ -73,6 +73,27 @@ const WRFApp = (() => {
   };
 
   // ===== State Persistence =====
+  // ===== Serialize / Deserialize (for share URL) =====
+  function serializeState() {
+    const s = { ...state };
+    s.startDate = s.startDate ? s.startDate.toISOString() : null;
+    s.endDate   = s.endDate   ? s.endDate.toISOString()   : null;
+    const bytes = new TextEncoder().encode(JSON.stringify(s));
+    let binary = '';
+    bytes.forEach(b => { binary += String.fromCharCode(b); });
+    return btoa(binary);
+  }
+
+  function deserializeState(encoded) {
+    const binary = atob(encoded);
+    const bytes  = Uint8Array.from(binary, c => c.charCodeAt(0));
+    const s      = JSON.parse(new TextDecoder().decode(bytes));
+    s.startDate = s.startDate ? new Date(s.startDate) : null;
+    s.endDate   = s.endDate   ? new Date(s.endDate)   : null;
+    if (!WRFDateTime.DATA_SOURCES[s.dataSource]) s.dataSource = 'GFS';
+    Object.assign(state, s);
+  }
+
   function saveState() {
     try {
       const s = { ...state };
@@ -97,11 +118,14 @@ const WRFApp = (() => {
 
   // ===== Wizard Navigation =====
   function goToStep(step) {
-    if (step < 1 || step > 5) return;
+    if (step < 0 || step > 5) return;
 
     // Hide all steps
     document.querySelectorAll('.wizard-step').forEach(el => el.classList.add('hidden'));
     document.getElementById(`step-${step}`).classList.remove('hidden');
+
+    // Intro page — no nav/state updates needed
+    if (step === 0) return;
 
     // Update sidebar
     document.querySelectorAll('.wizard-step-btn').forEach(btn => {
@@ -1021,6 +1045,72 @@ const WRFApp = (() => {
     el.innerHTML = html;
   }
 
+  // ===== Share / Export / Import =====
+  function initShareImport() {
+    const modal      = document.getElementById('share-modal');
+    const backdrop   = document.getElementById('share-modal-backdrop');
+    const closeBtn   = document.getElementById('share-modal-close');
+    const urlInput   = document.getElementById('share-url-input');
+    const copyBtn    = document.getElementById('btn-copy-link');
+    const downloadBtn= document.getElementById('btn-download-json');
+    const fileInput  = document.getElementById('import-json-file');
+    const shareBtn   = document.getElementById('btn-share');
+
+    const openModal = () => {
+      const encoded = serializeState();
+      urlInput.value = `${location.origin}${location.pathname}?s=${encoded}`;
+      modal.classList.remove('hidden');
+    };
+    const closeModal = () => modal.classList.add('hidden');
+
+    shareBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(urlInput.value).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      });
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const s = { ...state };
+      s.startDate = s.startDate ? s.startDate.toISOString() : null;
+      s.endDate   = s.endDate   ? s.endDate.toISOString()   : null;
+      const blob = new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'wrflow-config.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    fileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const s = JSON.parse(ev.target.result);
+          s.startDate = s.startDate ? new Date(s.startDate) : null;
+          s.endDate   = s.endDate   ? new Date(s.endDate)   : null;
+          if (!WRFDateTime.DATA_SOURCES[s.dataSource]) s.dataSource = 'GFS';
+          Object.assign(state, s);
+          saveState();
+          closeModal();
+          restoreFromState();
+          showToast('Configuration imported successfully.', 'info');
+        } catch {
+          showToast('Failed to import: invalid JSON file.', 'warning');
+        }
+      };
+      reader.readAsText(file);
+      fileInput.value = '';
+    });
+  }
+
   // ===== Reset =====
   function initReset() {
     document.getElementById('btn-reset').addEventListener('click', () => {
@@ -1047,6 +1137,8 @@ const WRFApp = (() => {
     });
     const logoBtn = document.getElementById('btn-logo-home');
     if (logoBtn) logoBtn.addEventListener('click', () => goToStep(1));
+    const getStartedBtn = document.getElementById('btn-get-started');
+    if (getStartedBtn) getStartedBtn.addEventListener('click', () => goToStep(1));
   }
 
   // ===== Restore from State =====
@@ -1114,13 +1206,27 @@ const WRFApp = (() => {
 
   // ===== Init =====
   function init() {
-    const hadState = loadState();
+    // Check for a shared config in the URL (?s=...)
+    const urlParams   = new URLSearchParams(location.search);
+    const sharedParam = urlParams.get('s');
+    let hadState = false;
+    if (sharedParam) {
+      try {
+        deserializeState(sharedParam);
+        history.replaceState(null, '', location.pathname);
+        hadState = true;
+        saveState();
+      } catch { /* ignore malformed param */ }
+    } else {
+      hadState = loadState();
+    }
 
     initTheme();
     initTooltips();
     initNavButtons();
     initReset();
     initCopyDownload();
+    initShareImport();
 
     WRFMap.init();
 
@@ -1135,10 +1241,8 @@ const WRFApp = (() => {
     } else {
       renderDomainList();
       updateProjectionFields();
+      goToStep(0);
     }
-
-    // Start on step 1
-    if (!hadState) goToStep(1);
   }
 
   // Boot
