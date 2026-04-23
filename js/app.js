@@ -1055,6 +1055,7 @@ const WRFApp = (() => {
     const downloadBtn= document.getElementById('btn-download-json');
     const fileInput  = document.getElementById('import-json-file');
     const shareBtn   = document.getElementById('btn-share');
+    const importBtn  = document.getElementById('btn-import');
 
     const openModal = () => {
       const encoded = serializeState();
@@ -1064,6 +1065,7 @@ const WRFApp = (() => {
     const closeModal = () => modal.classList.add('hidden');
 
     shareBtn.addEventListener('click', openModal);
+    importBtn.addEventListener('click', () => fileInput.click());
     closeBtn.addEventListener('click', closeModal);
     backdrop.addEventListener('click', closeModal);
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
