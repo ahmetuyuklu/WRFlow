@@ -556,6 +556,14 @@
                 <label class="label-text text-xs">WPS_GEOG_DIR <span class="tooltip-trigger" data-tooltip="Path to the WPS geographical data (WPS_GEOG). Used as geog_data_path in namelist.wps.">?</span></label>
                 <input type="text" id="adv-geog-path" class="input-field text-xs" placeholder="/path/to/WPS_GEOG/" value="/path/to/WPS_GEOG/">
               </div>
+              <div class="space-y-2">
+                <label class="label-text text-xs">DATA_DIR <span class="tooltip-trigger" data-tooltip="Exact folder where downloaded GFS/ERA5 files will be stored. Used as OUTPUT_DIR in the download script and DATA_DIR in the run script.">?</span></label>
+                <input type="text" id="download-data-dir" class="input-field text-xs" placeholder="./wrf_data" value="./wrf_data">
+              </div>
+              <div class="space-y-2">
+                <label class="label-text text-xs">WRF_OUTPUT_DIR <span class="tooltip-trigger" data-tooltip="Folder where WRF output files (wrfout_*, rsl.*, logs) will be copied after a successful run.">?</span></label>
+                <input type="text" id="output-dir" class="input-field text-xs" placeholder="./wrf_output" value="./wrf_output">
+              </div>
             </div>
           </div>
 

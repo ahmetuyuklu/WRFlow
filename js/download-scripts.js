@@ -71,7 +71,7 @@ for cmd in curl wget; do
 done
 
 # Configuration
-OUTPUT_DIR="./gfs_data"
+OUTPUT_DIR="${state.downloadDataDir || './wrf_data'}"
 DATE="${dateDir}"
 CYCLE="${startHour}"
 START_FH=${state.startForecastHour || 0}
@@ -260,7 +260,7 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "cdsapi", "-q"])
     import cdsapi
 
-OUTPUT_DIR = "./era5_data"
+OUTPUT_DIR = "${state.downloadDataDir || './wrf_data'}"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------

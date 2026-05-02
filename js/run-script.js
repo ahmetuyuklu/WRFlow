@@ -8,8 +8,8 @@ const WRFRunScript = (() => {
     let vtable = 'Vtable.GFS';
     if (state.dataSource === 'ERA5') vtable = 'Vtable.ERA-interim.pl';
 
-    const dataDir = state.dataSource === 'ERA5' ? './era5_data'
-                  : './gfs_data';
+    const dataDir = state.downloadDataDir || (state.dataSource === 'ERA5' ? './era5_data' : './gfs_data');
+    const outputDir = state.outputDir || './wrf_output';
     const gribPattern = state.dataSource === 'ERA5' ? '"${DATA_DIR}"/*.grib'
                       : '"${DATA_DIR}"/gfs.*';
     const numDomains = state.domains.length;
@@ -55,6 +55,7 @@ set -euo pipefail
 WPS_DIR="${state.wpsDir}"
 WRF_DIR="${state.wrfDir}"
 DATA_DIR="${dataDir}"
+OUTPUT_DIR="${outputDir}"
 NUM_PROCS=${numProcs}  # Number of MPI processes for wrf.exe
 # ================================================
 
@@ -200,10 +201,21 @@ if [ "\${WRF_COUNT}" -eq 0 ]; then
 fi
 
 echo ""
+# ===== Copy outputs to OUTPUT_DIR =====
+if [ "\${OUTPUT_DIR}" != "\${WRF_DIR}/run" ]; then
+  mkdir -p "\${OUTPUT_DIR}"
+  log_info "Copying outputs to \${OUTPUT_DIR} ..."
+  cp wrfout_d0* "\${OUTPUT_DIR}/" 2>/dev/null || true
+  cp rsl.out.* rsl.error.* "\${OUTPUT_DIR}/" 2>/dev/null || true
+  cp wrf.log "\${OUTPUT_DIR}/" 2>/dev/null || true
+  log_info "Outputs copied to \${OUTPUT_DIR}/"
+fi
+
+echo ""
 echo "========================================="
 log_info "WRF run completed successfully!"
 log_info "Output files: \${WRF_COUNT} wrfout time slices"
-echo "  Location: \${WRF_DIR}/run/"
+echo "  Location: \${OUTPUT_DIR}/"
 echo "========================================="
 `;
 

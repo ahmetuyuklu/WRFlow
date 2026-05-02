@@ -69,7 +69,10 @@ const WRFApp = (() => {
     slurmNodes: 1,
     slurmNtasksPerNode: 32,
     slurmWalltime: '24:00:00',
-    slurmAccount: ''
+    slurmAccount: '',
+    // Script directories
+    downloadDataDir: './wrf_data',
+    outputDir: './wrf_output'
   };
 
   // ===== State Persistence =====
@@ -906,6 +909,16 @@ const WRFApp = (() => {
       updateScripts();
       saveState();
     });
+    document.getElementById('download-data-dir').addEventListener('change', (e) => {
+      state.downloadDataDir = e.target.value || './wrf_data';
+      updateScripts();
+      saveState();
+    });
+    document.getElementById('output-dir').addEventListener('change', (e) => {
+      state.outputDir = e.target.value || './wrf_output';
+      updateScripts();
+      saveState();
+    });
 
     // Scheduler mode radios
     document.querySelectorAll('input[name="scheduler"]').forEach(radio => {
@@ -1173,6 +1186,8 @@ const WRFApp = (() => {
     // Restore WRF paths
     document.getElementById('wps-dir').value = state.wpsDir;
     document.getElementById('wrf-dir').value = state.wrfDir;
+    document.getElementById('download-data-dir').value = state.downloadDataDir || './wrf_data';
+    document.getElementById('output-dir').value = state.outputDir || './wrf_output';
 
     // Restore advanced settings
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };

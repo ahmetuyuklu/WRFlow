@@ -44,7 +44,7 @@ WRFlow walks you through configuring a WRF simulation in 5 steps and generates e
 | **ERA5** | 0.25° | 1h | Historical | Python + CDS API |
 
 **Notes:**
-- **GFS**: Selectable interval: 1h mode downloads f000–f120 hourly (5-day runs); 3h mode downloads up to f384 (16-day runs). ±3° bounding box clipping. Configurable start forecast hour.
+- **GFS**: Selectable interval: 1h mode downloads f000–f120 hourly (5-day runs); 3h mode downloads up to f384 (16-day runs). ±5° bounding box clipping. Configurable start forecast hour.
 - **ERA5**: Requires CDS API key (~5 min setup); full historical coverage.
 
 ### Physics Configuration
