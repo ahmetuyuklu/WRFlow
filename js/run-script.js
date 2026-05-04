@@ -69,6 +69,12 @@ log_info()  { echo -e "\${GREEN}[INFO]\${NC}  $1"; }
 log_warn()  { echo -e "\${YELLOW}[WARN]\${NC}  $1"; }
 log_error() { echo -e "\${RED}[ERROR]\${NC} $1"; }
 
+# Resolve DATA_DIR and OUTPUT_DIR to absolute paths NOW, before any cd.
+# This ensures relative paths (e.g. ./wrf_data) remain correct after
+# the script cds into WPS_DIR or WRF_DIR.
+DATA_DIR=\$(mkdir -p "\${DATA_DIR}" 2>/dev/null; cd "\${DATA_DIR}" && pwd)
+OUTPUT_DIR=\$(mkdir -p "\${OUTPUT_DIR}" 2>/dev/null; cd "\${OUTPUT_DIR}" && pwd)
+
 check_success() {
   local program="$1"
   local logfile="$2"
@@ -128,6 +134,18 @@ log_info "Step 2/5: Running ungrib.exe ..."
 ln -sf ungrib/Variable_Tables/${vtable} Vtable
 
 # Link GRIB files
+# Verify GRIB files exist before calling link_grib.csh.
+# link_grib.csh is a csh script whose foreach loop throws "No match"
+# (with no useful context) if the glob expands to nothing.
+GRIB_COUNT=\$(ls -1 ${state.dataSource === 'ERA5' ? '"\${DATA_DIR}"/*.grib' : '"\${DATA_DIR}"/gfs.*'} 2>/dev/null | wc -l | tr -d ' ')
+if [ "\${GRIB_COUNT}" -eq 0 ]; then
+  log_error "No GRIB files found in DATA_DIR=\${DATA_DIR}"
+  log_error "Expected pattern: ${state.dataSource === 'ERA5' ? '*.grib' : 'gfs.*'}"
+  log_error "Run the download script first, or correct DATA_DIR above."
+  exit 1
+fi
+log_info "Found \${GRIB_COUNT} GRIB file(s) in \${DATA_DIR}"
+
 ./link_grib.csh ${gribPattern}
 
 if [ ! -f Vtable ]; then
