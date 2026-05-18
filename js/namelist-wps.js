@@ -44,15 +44,18 @@ const WRFNamelistWPS = (() => {
     out += K('geog_data_path') + `= '${state.geogDataPath || '/path/to/WPS_GEOG/'}',\n`;
     out += '/\n\n';
 
+    const filePrefix = `${state.outputDir || './wrf_output'}/FILE`;
+
     // &ungrib
     out += '&ungrib\n';
     out += K('out_format') + "= 'WPS',\n";
-    out += K('prefix') + "= 'FILE',\n";
+    out += K('prefix') + `= '${filePrefix}',\n`;
     out += '/\n\n';
 
     // &metgrid
     out += '&metgrid\n';
-    out += K('fg_name') + "= 'FILE',\n";
+    out += K('fg_name') + `= '${filePrefix}',\n`;
+    out += K('opt_output_from_metgrid_path') + `= '${state.outputDir || './wrf_output'}/',\n`;
     out += K('io_form_metgrid') + '= 2,\n';
     out += '/\n';
 

@@ -165,10 +165,10 @@ log_info "Step 3/5: Running metgrid.exe ..."
 
 check_success "metgrid.exe" "metgrid.log" "Successful completion of program metgrid"
 
-# Verify met_em files were created
-MET_COUNT=$(ls -1 met_em.d01.* 2>/dev/null | wc -l | tr -d ' ')
+# Verify met_em files were created (written to OUTPUT_DIR via namelist prefix)
+MET_COUNT=$(find "\${OUTPUT_DIR}" -maxdepth 1 -name 'met_em.d01.*' 2>/dev/null | wc -l | tr -d ' ')
 if [ "\${MET_COUNT}" -eq 0 ]; then
-  log_error "No met_em files found after metgrid"
+  log_error "No met_em files found in \${OUTPUT_DIR} after metgrid"
   exit 1
 fi
 log_info "Created \${MET_COUNT} met_em time slices."
@@ -185,8 +185,8 @@ if [ ! -f namelist.input ]; then
   exit 1
 fi
 
-# Link met_em files from WPS directory
-ln -sf "\${WPS_DIR}"/met_em.* .
+# Link met_em files from OUTPUT_DIR
+ln -sf "\${OUTPUT_DIR}"/met_em.* .
 
 ./real.exe >& real.log || true
 
@@ -212,7 +212,7 @@ ${wrfExec}
 check_success "wrf.exe" "rsl.out.0000" "SUCCESS COMPLETE WRF"
 
 # Verify wrfout files
-WRF_COUNT=$(ls -1 wrfout_d01_* 2>/dev/null | wc -l | tr -d ' ')
+WRF_COUNT=$(find . -maxdepth 1 -name 'wrfout_d01_*' 2>/dev/null | wc -l | tr -d ' ')
 if [ "\${WRF_COUNT}" -eq 0 ]; then
   log_error "No wrfout files found after wrf.exe"
   exit 1
