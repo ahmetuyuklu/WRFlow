@@ -33,8 +33,10 @@ const WRFNamelistWPS = (() => {
     out += K('e_we') + `= ${J(d.map(dom => dom.e_we))},\n`;
     out += K('e_sn') + `= ${J(d.map(dom => dom.e_sn))},\n`;
     out += K('geog_data_res') + `= ${J(d.map(() => "'default'"))},\n`;
-    out += K('dx') + `= ${d[0].dx},\n`;
-    out += K('dy') + `= ${d[0].dy},\n`;
+    // WPS expects angular increments for Lat-Lon, unlike projected grids.
+    const spacingScale = state.mapProj === 'lat-lon' ? WRFProjection.METERS_PER_DEGREE : 1;
+    out += K('dx') + `= ${d[0].dx / spacingScale},\n`;
+    out += K('dy') + `= ${d[0].dy / spacingScale},\n`;
     out += K('map_proj') + `= '${state.mapProj}',\n`;
     out += K('ref_lat') + `= ${d[0].ref_lat},\n`;
     out += K('ref_lon') + `= ${d[0].ref_lon},\n`;

@@ -32,6 +32,38 @@ html, body {
   scrollbar-gutter: stable;
 }
 
+/* ===== Beta Branding ===== */
+.beta-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.125rem 0.45rem;
+  border: 1px solid #fcd34d;
+  border-radius: 9999px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+[data-theme="dark"] .beta-badge {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: #92400e;
+  color: #fcd34d;
+}
+@media (max-width: 639px) {
+  header { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+  .header-brand { gap: 0.5rem !important; }
+  .header-brand h1 { font-size: 1.125rem; }
+  .header-brand svg { width: 1.5rem; height: 1.5rem; }
+  .header-actions { gap: 0.25rem !important; }
+  .header-actions button:not(#btn-theme) { padding-left: 0.5rem; padding-right: 0.5rem; }
+  .header-actions svg { margin-right: 0; }
+  .header-action-label, .header-actions > a { display: none; }
+}
+
 /* ===== Wizard Step Navigation ===== */
 .wizard-step-btn {
   width: 100%;
@@ -451,6 +483,37 @@ html, body {
 }
 
 /* ===== Leaflet Overrides ===== */
+/* Native SVG focus outlines surround the bounding box, producing a misleading
+   rectangle. Keyboard focus is indicated along the actual projected edge. */
+.wrf-domain-outline:focus {
+  outline: none;
+}
+.wrf-domain-outline:focus-visible {
+  stroke-width: 5;
+}
+.wrf-domain-handle {
+  background: white;
+  border: 2px solid var(--primary-600);
+  border-radius: 3px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+  cursor: nwse-resize;
+}
+.wrf-move-handle {
+  border-radius: 50%;
+  cursor: move;
+  color: var(--primary-700);
+  font-size: 13px;
+  line-height: 12px;
+  text-align: center;
+}
+.wrf-edit-control a {
+  font-size: 22px;
+  color: var(--surface-700);
+}
+.wrf-edit-control a.wrf-edit-active { color: var(--primary-600); background: var(--primary-50); }
+.wrf-edit-control a.wrf-edit-disabled { color: var(--surface-300); cursor: default; }
+[data-theme="dark"] .wrf-edit-control a { background: var(--surface-800); color: var(--surface-200); }
+[data-theme="dark"] .wrf-edit-control a.wrf-edit-active { color: var(--primary-300); }
 .leaflet-container {
   background-color: var(--surface-200);
   font-family: inherit;

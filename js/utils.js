@@ -42,11 +42,15 @@ const WRFUtils = (() => {
 
   // Calculate buffered bounding box (±buffer degrees), clamped to valid ranges
   function bufferedBBox(south, north, west, east, bufferDeg) {
+    // A single download request cannot represent a date-line crossing as an
+    // ordered [-180, 180] subregion. Cover all longitudes rather than clipping
+    // away part of the domain or returning an inverted bounding box.
+    const wraps = west - bufferDeg < -180 || east + bufferDeg > 180;
     return {
       south: clamp(south - bufferDeg, -90, 90),
       north: clamp(north + bufferDeg, -90, 90),
-      west: clamp(west - bufferDeg, -180, 180),
-      east: clamp(east + bufferDeg, -180, 180)
+      west: wraps ? -180 : west - bufferDeg,
+      east: wraps ? 180 : east + bufferDeg
     };
   }
 

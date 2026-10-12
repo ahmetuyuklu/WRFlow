@@ -1,147 +1,177 @@
 /**
  * WRFlow — Domain Configuration & Grid Math
- * Handles grid calculations, nesting validation, and projection logic.
+ * Domain boundaries and nesting are calculated in the WPS projection plane.
  */
 const WRFDomain = (() => {
-
   const DOMAIN_COLORS = ['#4f46e5', '#059669', '#d97706', '#dc2626'];
 
-  // Calculate grid dimensions from map bounds and resolution
-  function calcGrid(bounds, dx, dy) {
-    const { south, north, west, east } = bounds;
-    const centerLat = (south + north) / 2;
-    const centerLon = (west + east) / 2;
-
-    // Approximate domain size in meters
-    const widthM = WRFUtils.haversineDistance(centerLat, west, centerLat, east);
-    const heightM = WRFUtils.haversineDistance(south, centerLon, north, centerLon);
-
-    // Grid points: ensure odd-compatible for nesting
-    let eWe = Math.max(100, Math.floor(widthM / dx) + 1);
-    let eSn = Math.max(100, Math.floor(heightM / dy) + 1);
-
-    // Make (e_we - 1) divisible by common ratios (3, 5) for potential nesting
-    // Round up to next value where (n-1) is divisible by 3
-    while ((eWe - 1) % 3 !== 0) eWe++;
-    while ((eSn - 1) % 3 !== 0) eSn++;
-
-    return {
-      e_we: eWe,
-      e_sn: eSn,
-      ref_lat: Math.round(centerLat * 100) / 100,
-      ref_lon: Math.round(centerLon * 100) / 100,
-      width_km: Math.round(widthM / 1000),
-      height_km: Math.round(heightM / 1000)
-    };
+  function gridPoints(length, spacing, ratio = 3, minimum = 100) {
+    const cells = Math.ceil(length / spacing / ratio - 1e-9) * ratio;
+    return Math.max(Math.ceil((minimum - 1) / ratio) * ratio, cells) + 1;
   }
 
-  // Calculate truelat1, truelat2, stand_lon based on projection and domain center
-  function calcProjectionParams(proj, refLat, refLon) {
-    const params = { truelat1: refLat, truelat2: refLat, stand_lon: refLon };
-
-    switch (proj) {
-      case 'lambert':
-        // Standard: truelats placed at ~1/6 from edges of domain, simplified as ±15° from center
-        // Clamp between -90 and 90
-        params.truelat1 = Math.round(WRFUtils.clamp(refLat - 15, -90, 90) * 100) / 100;
-        params.truelat2 = Math.round(WRFUtils.clamp(refLat + 15, -90, 90) * 100) / 100;
-        break;
-      case 'mercator':
-        params.truelat1 = Math.round(refLat * 100) / 100;
-        params.truelat2 = 0;
-        break;
-      case 'polar':
-        params.truelat1 = refLat >= 0 ? 90 : -90;
-        params.truelat2 = 0;
-        break;
-      case 'lat-lon':
-        params.truelat1 = 0;
-        params.truelat2 = 0;
-        params.stand_lon = 0;
-        break;
+  function calcProjectionParams(proj, refLat, refLon, bounds) {
+    const hemi = refLat < 0 ? -1 : 1;
+    const parallel = lat => Math.round(WRFUtils.clamp(Math.abs(lat), 1, 89) * 100) / 100;
+    const params = { truelat1: refLat, truelat2: 0, stand_lon: refLon };
+    if (proj === 'lambert') {
+      const span = bounds ? bounds.north - bounds.south : 45;
+      // Keep both standard parallels in the domain's hemisphere.
+      const lower = Math.max(1, Math.abs(refLat) - span / 3);
+      const upper = Math.abs(refLat) + span / 3;
+      params.truelat1 = hemi * parallel(lower);
+      params.truelat2 = hemi * parallel(upper);
+    } else if (proj === 'polar') {
+      params.truelat1 = hemi * 90;
+    } else if (proj === 'mercator') {
+      params.truelat1 = Math.round(WRFUtils.clamp(refLat, -89, 89) * 100) / 100;
+    } else if (proj === 'lat-lon') {
+      params.truelat1 = 0;
+      params.stand_lon = 0;
     }
     return params;
   }
 
-  // Calculate nest grid parameters from parent and nest bounds
-  function calcNest(parentDomain, nestBounds, ratio) {
-    const pBounds = parentDomain.bounds;
-    const dx = parentDomain.dx / ratio;
-    const dy = parentDomain.dy / ratio;
-
-    // Position of nest lower-left corner in parent grid coordinates
-    const parentWidthDeg = pBounds.east - pBounds.west;
-    const parentHeightDeg = pBounds.north - pBounds.south;
-
-    // i_parent_start, j_parent_start (1-indexed grid point in parent)
-    const iStart = Math.max(1, Math.round(
-      ((nestBounds.west - pBounds.west) / parentWidthDeg) * (parentDomain.e_we - 1)
-    ) + 1);
-    const jStart = Math.max(1, Math.round(
-      ((nestBounds.south - pBounds.south) / parentHeightDeg) * (parentDomain.e_sn - 1)
-    ) + 1);
-
-    // Nest grid dimensions in parent cells
-    const iEnd = Math.round(
-      ((nestBounds.east - pBounds.west) / parentWidthDeg) * (parentDomain.e_we - 1)
-    ) + 1;
-    const jEnd = Math.round(
-      ((nestBounds.north - pBounds.south) / parentHeightDeg) * (parentDomain.e_sn - 1)
-    ) + 1;
-
-    const parentCellsWE = iEnd - iStart;
-    const parentCellsSN = jEnd - jStart;
-
-    // Nest grid points: (parent_cells * ratio) + 1
-    let eWe = parentCellsWE * ratio + 1;
-    let eSn = parentCellsSN * ratio + 1;
-
-    // Ensure minimum size and (n-1) divisible by ratio
-    eWe = Math.max(ratio * 10 + 1, eWe);
-    eSn = Math.max(ratio * 10 + 1, eSn);
-    while ((eWe - 1) % ratio !== 0) eWe++;
-    while ((eSn - 1) % ratio !== 0) eSn++;
-
+  // Sample the whole selection, not just its corners: projected edge extrema
+  // can occur between corners (particularly Lambert and Polar domains).
+  function projectBounds(bounds, projection) {
+    const points = [];
+    for (let i = 0; i <= 64; i++) {
+      const t = i / 64;
+      const lat = bounds.south + (bounds.north - bounds.south) * t;
+      const lon = bounds.west + (bounds.east - bounds.west) * t;
+      points.push(projection.forward(bounds.south, lon), projection.forward(bounds.north, lon),
+        projection.forward(lat, bounds.west), projection.forward(lat, bounds.east));
+    }
     return {
-      i_parent_start: iStart,
-      j_parent_start: jStart,
-      e_we: eWe,
-      e_sn: eSn,
-      dx: dx,
-      dy: dy,
-      ref_lat: Math.round(((nestBounds.south + nestBounds.north) / 2) * 100) / 100,
-      ref_lon: Math.round(((nestBounds.west + nestBounds.east) / 2) * 100) / 100
+      xMin: Math.min(...points.map(p => p.x)), xMax: Math.max(...points.map(p => p.x)),
+      yMin: Math.min(...points.map(p => p.y)), yMax: Math.max(...points.map(p => p.y))
     };
   }
 
-  // Validate nesting: check containment and buffer zone
-  function validateNest(parentDomain, nestBounds, ratio) {
+  function calcGrid(bounds, dx, dy, config) {
+    const refLat = Math.round((bounds.south + bounds.north) / 2 * 1e6) / 1e6;
+    const refLon = Math.round(WRFProjection.normalizeLon((bounds.west + bounds.east) / 2) * 1e6) / 1e6;
+    const projection = WRFProjection.create(config, refLon);
+    const center = projection.forward(refLat, refLon);
+    const rect = projectBounds(bounds, projection);
+    const width = 2 * Math.max(center.x - rect.xMin, rect.xMax - center.x);
+    const height = 2 * Math.max(center.y - rect.yMin, rect.yMax - center.y);
+    return {
+      e_we: gridPoints(width, dx), e_sn: gridPoints(height, dy),
+      ref_lat: refLat, ref_lon: refLon
+    };
+  }
+
+  function calcNest(parent, bounds, ratio) {
+    return calcNestRect(parent, projectBounds(bounds, parent.projection), ratio);
+  }
+
+  function calcNestRect(parent, rect, ratio) {
+    const iStart = Math.round((rect.xMin - parent.xMin) / parent.dx) + 1;
+    const jStart = Math.round((rect.yMin - parent.yMin) / parent.dy) + 1;
+    const cellsWE = Math.max(10, Math.round((rect.xMax - rect.xMin) / parent.dx));
+    const cellsSN = Math.max(10, Math.round((rect.yMax - rect.yMin) / parent.dy));
+    return {
+      i_parent_start: iStart, j_parent_start: jStart,
+      e_we: cellsWE * ratio + 1, e_sn: cellsSN * ratio + 1,
+      dx: parent.dx / ratio, dy: parent.dy / ratio
+    };
+  }
+
+  // ARW's exterior edges lie at .5 and e_we-.5 (likewise e_sn).
+  // Their midpoint is e_we/2, the default WPS ref_x/ref_y. Nest edges align
+  // with parent edges at i_parent_start-.5, giving this exact grid offset.
+  function rectGeometry(projection, rect, dx, dy) {
+    const { xMin, xMax, yMin, yMax } = rect;
+    const center = projection.inverse((xMin + xMax) / 2, (yMin + yMax) / 2);
+    const corners = [[xMin, yMin], [xMax, yMin], [xMax, yMax], [xMin, yMax]];
+    const boundary = [];
+    corners.forEach(([x, y], edge) => {
+      const [nextX, nextY] = corners[(edge + 1) % 4];
+      for (let i = 0; i < 64; i++) {
+        const point = projection.inverse(x + (nextX - x) * i / 64, y + (nextY - y) * i / 64);
+        // Keep the footprint on one world copy when crossing the date line.
+        point.lon = WRFProjection.unwrapLon(point.lon, boundary.length ? boundary[boundary.length - 1][1] : center.lon);
+        boundary.push([point.lat, point.lon]);
+      }
+    });
+    const bounds = {
+      south: Math.min(...boundary.map(p => p[0])), north: Math.max(...boundary.map(p => p[0])),
+      west: Math.min(...boundary.map(p => p[1])), east: Math.max(...boundary.map(p => p[1]))
+    };
+    const enclosesPole = (projection.mapProj === 'polar' || projection.mapProj === 'lambert') &&
+      xMin <= 0 && xMax >= 0 && yMin <= 0 && yMax >= 0;
+    if (enclosesPole) {
+      if (projection.hemi > 0) bounds.north = 90;
+      else bounds.south = -90;
+      bounds.west = -180;
+      bounds.east = 180;
+      // Close a pole-enclosing ring along the top/bottom of the Mercator map.
+      boundary.push([projection.hemi * 90, boundary[boundary.length - 1][1]],
+        [projection.hemi * 90, boundary[0][1]]);
+    }
+    return { projection, ...rect, dx, dy, center, boundary, bounds };
+  }
+
+  function buildGeometries(domains, config) {
+    const geometries = {};
+    const root = domains.find(d => d.id === 1);
+    if (!root || !root.bounds) return geometries;
+    const projection = WRFProjection.create(config, root.ref_lon);
+    const visiting = new Set();
+    function build(dom) {
+      if (geometries[dom.id]) return geometries[dom.id];
+      if (!dom.bounds) return null;
+      if (visiting.has(dom.id)) throw new Error('Domain nesting contains a circular parent reference.');
+      visiting.add(dom.id);
+      let xMin, yMin, dx = dom.dx, dy = dom.dy;
+      if (dom.id === 1) {
+        const center = projection.forward(dom.ref_lat, dom.ref_lon);
+        xMin = center.x - (dom.e_we - 1) * dx / 2;
+        yMin = center.y - (dom.e_sn - 1) * dy / 2;
+      } else {
+        if (!Number.isInteger(dom.parent_grid_ratio) || dom.parent_grid_ratio < 1) {
+          throw new Error('Nest grid ratios must be positive integers.');
+        }
+        const parentDomain = domains.find(d => d.id === dom.parent_id);
+        const parent = parentDomain && build(parentDomain);
+        if (!parent) throw new Error('Draw the nest’s parent domain first.');
+        dx = parent.dx / dom.parent_grid_ratio;
+        dy = parent.dy / dom.parent_grid_ratio;
+        xMin = parent.xMin + (dom.i_parent_start - 1) * parent.dx;
+        yMin = parent.yMin + (dom.j_parent_start - 1) * parent.dy;
+      }
+      if (!(dx > 0 && dy > 0 && dom.e_we >= 10 && dom.e_sn >= 10)) {
+        throw new Error('Grid spacing must be positive and dimensions must be at least 10.');
+      }
+      const geometry = rectGeometry(projection, {
+        xMin, yMin, xMax: xMin + (dom.e_we - 1) * dx, yMax: yMin + (dom.e_sn - 1) * dy
+      }, dx, dy);
+      geometries[dom.id] = geometry;
+      visiting.delete(dom.id);
+      return geometry;
+    }
+    domains.forEach(build);
+    return geometries;
+  }
+
+  function validateNest(parentDomain, nest) {
     const errors = [];
-    const pBounds = parentDomain.bounds;
-
-    // 1. Nest must be inside parent
-    if (nestBounds.west < pBounds.west || nestBounds.east > pBounds.east ||
-        nestBounds.south < pBounds.south || nestBounds.north > pBounds.north) {
+    const ratio = nest.parent_grid_ratio;
+    const west = nest.i_parent_start - 1;
+    const south = nest.j_parent_start - 1;
+    const east = parentDomain.e_we - 1 - west - (nest.e_we - 1) / ratio;
+    const north = parentDomain.e_sn - 1 - south - (nest.e_sn - 1) / ratio;
+    if (Math.min(west, east, south, north) < 0) {
       errors.push('Nest domain must be entirely within parent domain.');
+    } else {
+      if (Math.min(west, east) < 10) errors.push('Keep at least 10 parent grid cells from the east/west boundary.');
+      if (Math.min(south, north) < 10) errors.push('Keep at least 10 parent grid cells from the north/south boundary.');
     }
-
-    // 2. Buffer zone: nest should be at least ~10 parent grid points from parent boundary
-    const parentWidthDeg = pBounds.east - pBounds.west;
-    const parentHeightDeg = pBounds.north - pBounds.south;
-    const minBufferFrac = 10 / Math.max(parentDomain.e_we, parentDomain.e_sn);
-
-    const bufferW = (nestBounds.west - pBounds.west) / parentWidthDeg;
-    const bufferE = (pBounds.east - nestBounds.east) / parentWidthDeg;
-    const bufferS = (nestBounds.south - pBounds.south) / parentHeightDeg;
-    const bufferN = (pBounds.north - nestBounds.north) / parentHeightDeg;
-
-    if (bufferW < minBufferFrac || bufferE < minBufferFrac) {
-      errors.push(`Nest is too close to parent east/west boundary. Keep ~10+ grid points buffer (NCAR recommends ~1/3 of domain).`);
+    if ((nest.e_we - 1) % ratio !== 0 || (nest.e_sn - 1) % ratio !== 0) {
+      errors.push('Nest dimensions minus one must be divisible by the parent grid ratio.');
     }
-    if (bufferS < minBufferFrac || bufferN < minBufferFrac) {
-      errors.push(`Nest is too close to parent north/south boundary. Keep ~10+ grid points buffer.`);
-    }
-
     return errors;
   }
 
@@ -149,14 +179,6 @@ const WRFDomain = (() => {
     return DOMAIN_COLORS[domainIndex % DOMAIN_COLORS.length];
   }
 
-  function calcRotation(proj, standLon, refLon) {
-    // Calculate the natural rotation of the domain based on projection
-    // For most projections, rotation is minimal; for lat-lon it's 0
-    if (proj === 'lat-lon') return 0;
-    // For other projections, the standard rotation is based on how stand_lon differs from ref_lon
-    const diff = ((standLon - refLon + 180) % 360) - 180;
-    return Math.round(diff * 10) / 10; // Round to 0.1 degree
-  }
-
-  return { calcGrid, calcProjectionParams, calcNest, validateNest, getColor, calcRotation, DOMAIN_COLORS };
+  return { calcGrid, calcProjectionParams, calcNest, calcNestRect, projectBounds,
+    buildGeometries, rectGeometry, gridPoints, validateNest, getColor, DOMAIN_COLORS };
 })();

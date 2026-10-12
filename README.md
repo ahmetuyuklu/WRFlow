@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/status-beta-amber.svg" alt="Status: Beta">
   <a href="https://ahmetuyuklu.github.io/WRFlow"><img src="https://img.shields.io/badge/demo-GitHub%20Pages-brightgreen" alt="GitHub Pages"></a>
 </p>
 
@@ -31,10 +32,14 @@ WRFlow walks you through configuring a WRF simulation in 5 steps and generates e
 ## Features
 
 ### Domain Setup
-- Draw simulation domains on an interactive Leaflet map with multiple tile layers (Street, Topographic, Satellite)
-- Auto-calculates `e_we`, `e_sn`, `ref_lat`, `ref_lon` from drawn rectangles
+- Select simulation areas on an interactive Leaflet map with multiple tile layers (Street, Topographic, Satellite)
+- Displays the actual projected WRF grid boundary, including curved Lambert and Polar edges
+- Auto-calculates `e_we`, `e_sn`, `ref_lat`, `ref_lon` from rectangle selections in the selected WPS projection
+- Grid-aware move/resize controls: click the pencil, drag the center to move or a corner to resize, then click the checkmark to finish
 - Multi-domain nesting (up to 4 domains) with 3:1 or 5:1 ratio enforcement and buffer zone validation
 - 4 map projections: Lambert Conformal, Mercator, Polar Stereographic, Lat-Lon
+- The basemap remains Web Mercator; the domain outline uses the selected WRF projection
+- Lambert, Mercator, and Polar use equal DX/DY; Lat-Lon spacing is entered in meters at the equator and converted to degrees in `namelist.wps`
 
 ### Data Sources
 
@@ -80,7 +85,7 @@ WRFlow walks you through configuring a WRF simulation in 5 steps and generates e
 ## Quick Start
 
 1. Open **[WRFlow](https://ahmetuyuklu.github.io/WRFlow)** in your browser
-2. **Step 1 — Domain:** Draw your simulation area, set DX/DY and projection
+2. **Step 1 — Domain:** Select a projection and draw your simulation area; review the projected outline and adjust DX/DY or use the pencil to move/resize
 3. **Step 2 — Time & Data:** Pick a data source (GFS/ERA5), start date, and duration
 4. **Step 3 — Physics:** Choose parameterization schemes or use defaults
 5. **Step 4 — Namelists:** Review `namelist.wps` and `namelist.input`
@@ -96,8 +101,9 @@ WRFlow/
 ├── css/style.css           # Component styles (plain CSS, no build)
 ├── js/
 │   ├── app.js              # State management, UI wiring, wizard logic
-│   ├── map.js              # Leaflet map + domain drawing
-│   ├── domain.js           # Grid calculations, nesting, projections
+│   ├── map.js              # Leaflet selection + projected domain editing
+│   ├── projection.js       # Spherical WPS projection transforms
+│   ├── domain.js           # Projected grid calculations + nesting
 │   ├── datetime.js         # Date/time validation, data source constraints
 │   ├── physics.js          # Physics scheme catalog + compatibility
 │   ├── namelist-wps.js     # namelist.wps generator
@@ -135,6 +141,12 @@ npx serve .
 ```
 
 Then open `http://localhost:8000`.
+
+Run the projection and domain regression checks with Node.js:
+
+```bash
+node --test tests/domain.test.js
+```
 
 ---
 

@@ -29,6 +29,7 @@ const WRFApp = (() => {
     truelat1: 30,
     truelat2: 60,
     standLon: 35,
+    projectionAuto: { truelat1: true, truelat2: true, standLon: true },
     dataSource: 'GFS',
     gfsInterval: 3,
     startDateStr: '',
@@ -74,6 +75,7 @@ const WRFApp = (() => {
     downloadDataDir: './wrf_data',
     outputDir: './wrf_output'
   };
+  let domainGeometries = {};
 
   // ===== State Persistence =====
   // ===== Serialize / Deserialize (for share URL) =====
@@ -94,6 +96,7 @@ const WRFApp = (() => {
     s.startDate = s.startDate ? new Date(s.startDate) : null;
     s.endDate   = s.endDate   ? new Date(s.endDate)   : null;
     if (!WRFDateTime.DATA_SOURCES[s.dataSource]) s.dataSource = 'GFS';
+    s.projectionAuto = s.projectionAuto || { truelat1: false, truelat2: false, standLon: false };
     Object.assign(state, s);
   }
 
@@ -114,6 +117,7 @@ const WRFApp = (() => {
       s.startDate = s.startDate ? new Date(s.startDate) : null;
       s.endDate = s.endDate ? new Date(s.endDate) : null;
       if (!WRFDateTime.DATA_SOURCES[s.dataSource]) s.dataSource = 'GFS';
+      s.projectionAuto = s.projectionAuto || { truelat1: false, truelat2: false, standLon: false };
       Object.assign(state, s);
       return true;
     } catch (e) { return false; }
@@ -220,34 +224,74 @@ const WRFApp = (() => {
   function initDomainUI() {
     // Projection change
     document.getElementById('map-proj').addEventListener('change', (e) => {
-      state.mapProj = e.target.value;
-      updateProjectionFields();
-      recalcDomain(1);
+      commitDomainChange(() => {
+        state.mapProj = e.target.value;
+        updateAutoProjectionParams();
+      });
     });
 
     // DX/DY
-    document.getElementById('dx').addEventListener('change', (e) => {
-      state.domains[0].dx = parseInt(e.target.value) || 9000;
-      recalcDomain(1);
-    });
-    document.getElementById('dy').addEventListener('change', (e) => {
-      state.domains[0].dy = parseInt(e.target.value) || 9000;
-      recalcDomain(1);
-    });
+    ['dx', 'dy'].forEach(id => document.getElementById(id).addEventListener('change', (e) => {
+      commitDomainChange(() => {
+        const value = Number(e.target.value);
+        if (!(value > 0)) throw new Error('Grid spacing must be positive.');
+        const dom = state.domains[0];
+        const geometry = domainGeometries[1];
+        dom[id] = value;
+        // WPS map_utils uses DX in both directions for conformal grids.
+        if (state.mapProj !== 'lat-lon') dom.dx = dom.dy = value;
+        if (geometry) {
+          dom.e_we = WRFDomain.gridPoints(geometry.xMax - geometry.xMin, dom.dx);
+          dom.e_sn = WRFDomain.gridPoints(geometry.yMax - geometry.yMin, dom.dy);
+        }
+      });
+    }));
 
     // Manual coordinate inputs
     ['ref-lat', 'ref-lon', 'e-we', 'e-sn', 'truelat1', 'truelat2', 'stand-lon', 'e-vert'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.addEventListener('change', () => syncManualInputs());
+      if (el) el.addEventListener('change', () => syncManualInputs(id));
     });
 
     // Domain update from map
     document.addEventListener('domain-updated', (e) => {
-      const { domainId, bounds } = e.detail;
-      const domIdx = state.domains.findIndex(d => d.id === domainId);
-      if (domIdx === -1) return;
-      state.domains[domIdx].bounds = bounds;
-      recalcDomain(domainId);
+      const { domainId, bounds, projectedRect } = e.detail;
+      const dom = state.domains.find(d => d.id === domainId);
+      if (!dom) return;
+      commitDomainChange(() => {
+        if (domainId === 1) {
+          if (bounds) {
+            dom.ref_lat = (bounds.south + bounds.north) / 2;
+            dom.ref_lon = WRFProjection.normalizeLon((bounds.west + bounds.east) / 2);
+            updateAutoProjectionParams(bounds);
+            Object.assign(dom, WRFDomain.calcGrid(bounds, dom.dx, dom.dy, projectionConfig()));
+          } else {
+            const geometry = domainGeometries[1];
+            const center = geometry.projection.inverse(
+              (projectedRect.xMin + projectedRect.xMax) / 2,
+              (projectedRect.yMin + projectedRect.yMax) / 2);
+            dom.ref_lat = Math.round(center.lat * 1e6) / 1e6;
+            dom.ref_lon = Math.round(WRFProjection.normalizeLon(center.lon) * 1e6) / 1e6;
+            const width = projectedRect.xMax - projectedRect.xMin;
+            const height = projectedRect.yMax - projectedRect.yMin;
+            // Moving preserves dimensions, including manually chosen dimensions.
+            if (Math.abs(width - (dom.e_we - 1) * dom.dx) > 1e-5) dom.e_we = WRFDomain.gridPoints(width, dom.dx, 3, 10);
+            if (Math.abs(height - (dom.e_sn - 1) * dom.dy) > 1e-5) dom.e_sn = WRFDomain.gridPoints(height, dom.dy, 3, 10);
+          }
+        } else {
+          const parent = domainGeometries[dom.parent_id];
+          if (!parent) throw new Error('Draw the nest’s parent domain first.');
+          Object.assign(dom, bounds
+            ? WRFDomain.calcNest(parent, bounds, dom.parent_grid_ratio)
+            : WRFDomain.calcNestRect(parent, projectedRect, dom.parent_grid_ratio));
+        }
+        dom.bounds = bounds || dom.bounds;
+      }, !!bounds);
+    });
+    document.addEventListener('domain-selected', () => {
+      document.querySelectorAll('.domain-card').forEach(card => {
+        card.classList.toggle('active', Number(card.dataset.domain) === WRFMap.activeDomainId);
+      });
     });
 
     // Add Nest button
@@ -295,119 +339,117 @@ const WRFApp = (() => {
     if (defaultBtn) setActiveRatioButton(defaultBtn);
   }
 
-  function recalcDomain(domainId) {
-    const domIdx = state.domains.findIndex(d => d.id === domainId);
-    if (domIdx === -1) return;
-    const dom = state.domains[domIdx];
-
-    if (domainId === 1 && dom.bounds) {
-      const grid = WRFDomain.calcGrid(dom.bounds, dom.dx, dom.dy);
-      dom.e_we = grid.e_we;
-      dom.e_sn = grid.e_sn;
-      dom.ref_lat = grid.ref_lat;
-      dom.ref_lon = grid.ref_lon;
-
-      // Projection params
-      const projParams = WRFDomain.calcProjectionParams(state.mapProj, grid.ref_lat, grid.ref_lon);
-      state.truelat1 = projParams.truelat1;
-      state.truelat2 = projParams.truelat2;
-      state.standLon = projParams.stand_lon;
-
-      // Update UI
-      document.getElementById('ref-lat').value = grid.ref_lat;
-      document.getElementById('ref-lon').value = grid.ref_lon;
-      document.getElementById('e-we').value = grid.e_we;
-      document.getElementById('e-sn').value = grid.e_sn;
-      document.getElementById('truelat1').value = state.truelat1;
-      document.getElementById('truelat2').value = state.truelat2;
-      document.getElementById('stand-lon').value = state.standLon;
-
-      // Update info
-      const rotation = WRFDomain.calcRotation(state.mapProj, state.standLon, dom.ref_lon);
-      document.getElementById('d01-info').textContent =
-        `${grid.e_we}×${grid.e_sn} | ${dom.dx/1000}km | ${rotation}° rotation`;
-    } else if (domainId > 1 && dom.bounds) {
-      // Nest domain calculation
-      const parent = state.domains.find(d => d.id === dom.parent_id);
-      if (!parent || !parent.bounds) return;
-
-      const nestParams = WRFDomain.calcNest(parent, dom.bounds, dom.parent_grid_ratio);
-      dom.e_we = nestParams.e_we;
-      dom.e_sn = nestParams.e_sn;
-      dom.dx = nestParams.dx;
-      dom.dy = nestParams.dy;
-      dom.i_parent_start = nestParams.i_parent_start;
-      dom.j_parent_start = nestParams.j_parent_start;
-      dom.ref_lat = nestParams.ref_lat;
-      dom.ref_lon = nestParams.ref_lon;
-
-      // Validate
-      const errors = WRFDomain.validateNest(parent, dom.bounds, dom.parent_grid_ratio);
-      WRFMap.setDomainValidation(domainId, errors.length === 0);
-
-      // Update domain card info
-      const infoEl = document.getElementById(`d${WRFUtils.pad(domainId, 2)}-info`);
-      if (infoEl) {
-        if (errors.length > 0) {
-          infoEl.textContent = errors[0];
-          infoEl.classList.add('text-red-500');
-        } else {
-          const rotation = WRFDomain.calcRotation(state.mapProj, state.standLon, dom.ref_lon);
-          infoEl.textContent = `${dom.e_we}×${dom.e_sn} | ${(dom.dx/1000).toFixed(1)}km | ${rotation}° | ratio ${dom.parent_grid_ratio}:1`;
-          infoEl.classList.remove('text-red-500');
-        }
-      }
-    }
-
-    updateSummary();
-    saveState();
+  function projectionConfig() {
+    return { mapProj: state.mapProj, truelat1: state.truelat1,
+      truelat2: state.truelat2, standLon: state.standLon };
   }
 
-  function syncManualInputs() {
-    const refLat = parseFloat(document.getElementById('ref-lat').value);
-    const refLon = parseFloat(document.getElementById('ref-lon').value);
-    const eWe = parseInt(document.getElementById('e-we').value);
-    const eSn = parseInt(document.getElementById('e-sn').value);
-    const eVert = parseInt(document.getElementById('e-vert').value);
+  function updateAutoProjectionParams(bounds) {
+    const dom = state.domains[0];
+    const params = WRFDomain.calcProjectionParams(state.mapProj, dom.ref_lat, dom.ref_lon, bounds);
+    if (state.projectionAuto.truelat1) state.truelat1 = params.truelat1;
+    if (state.projectionAuto.truelat2) state.truelat2 = params.truelat2;
+    if (state.projectionAuto.standLon) state.standLon = params.stand_lon;
+  }
 
-    if (!isNaN(refLat)) state.domains[0].ref_lat = refLat;
-    if (!isNaN(refLon)) state.domains[0].ref_lon = refLon;
-    if (!isNaN(eWe) && eWe >= 10) state.domains[0].e_we = eWe;
-    if (!isNaN(eSn) && eSn >= 10) state.domains[0].e_sn = eSn;
-    if (!isNaN(eVert) && eVert >= 28) state.eVert = eVert;
+  function syncDomainFields() {
+    const dom = state.domains[0];
+    const values = { 'map-proj': state.mapProj, dx: dom.dx, dy: dom.dy,
+      'ref-lat': dom.ref_lat, 'ref-lon': dom.ref_lon, 'e-we': dom.e_we, 'e-sn': dom.e_sn,
+      truelat1: state.truelat1, truelat2: state.truelat2, 'stand-lon': state.standLon, 'e-vert': state.eVert };
+    Object.entries(values).forEach(([id, value]) => { document.getElementById(id).value = value; });
+    updateProjectionFields();
+  }
 
-    const tl1 = parseFloat(document.getElementById('truelat1').value);
-    const tl2 = parseFloat(document.getElementById('truelat2').value);
-    const slon = parseFloat(document.getElementById('stand-lon').value);
-    if (!isNaN(tl1)) state.truelat1 = tl1;
-    if (!isNaN(tl2)) state.truelat2 = tl2;
-    if (!isNaN(slon)) state.standLon = slon;
-
-    // If we have ref_lat/lon and e_we/e_sn but no bounds yet, compute approximate bounds
-    if (state.domains[0].ref_lat && state.domains[0].ref_lon && !state.domains[0].bounds) {
-      const dom = state.domains[0];
-      const halfW = (dom.e_we * dom.dx / 2) / 111000; // rough deg
-      const halfH = (dom.e_sn * dom.dy / 2) / 111000;
-      const bounds = {
-        south: dom.ref_lat - halfH,
-        north: dom.ref_lat + halfH,
-        west: dom.ref_lon - halfW / Math.cos(dom.ref_lat * Math.PI / 180),
-        east: dom.ref_lon + halfW / Math.cos(dom.ref_lat * Math.PI / 180)
-      };
-      dom.bounds = bounds;
-      WRFMap.setDomainRect(1, bounds.south, bounds.north, bounds.west, bounds.east);
-      WRFMap.fitBounds();
-    }
-
+  function refreshDomains() {
+    if (state.mapProj !== 'lat-lon') state.domains[0].dy = state.domains[0].dx;
+    const geometries = WRFDomain.buildGeometries(state.domains, projectionConfig());
+    state.domains.forEach(dom => {
+      const geometry = geometries[dom.id];
+      if (!geometry) {
+        const parent = state.domains.find(d => d.id === dom.parent_id);
+        if (dom.id > 1 && parent) {
+          dom.dx = parent.dx / dom.parent_grid_ratio;
+          dom.dy = parent.dy / dom.parent_grid_ratio;
+        }
+        return;
+      }
+      dom.bounds = geometry.bounds;
+      dom.dx = geometry.dx;
+      dom.dy = geometry.dy;
+      if (dom.id > 1) {
+        dom.ref_lat = Math.round(geometry.center.lat * 1e6) / 1e6;
+        dom.ref_lon = Math.round(WRFProjection.normalizeLon(geometry.center.lon) * 1e6) / 1e6;
+      }
+      WRFMap.setDomainGeometry(dom.id, geometry);
+      const parent = state.domains.find(d => d.id === dom.parent_id);
+      WRFMap.setDomainValidation(dom.id, dom.id === 1 || WRFDomain.validateNest(parent, dom).length === 0);
+    });
+    domainGeometries = geometries;
+    syncDomainFields();
+    renderDomainList();
     updateSummary();
-    saveState();
+  }
+
+  function commitDomainChange(change, fit = false) {
+    const previous = { ...state, domains: state.domains.map(dom => ({ ...dom })),
+      projectionAuto: { ...state.projectionAuto } };
+    try {
+      change();
+      refreshDomains();
+      if (fit) WRFMap.fitBounds();
+      saveState();
+    } catch (error) {
+      Object.assign(state, previous);
+      syncDomainFields();
+      showToast(error.message, 'warning');
+    }
+  }
+
+  function syncManualInputs(id) {
+    const hadBounds = !!state.domains[0].bounds;
+    commitDomainChange(() => {
+      const dom = state.domains[0];
+      const raw = document.getElementById(id).value;
+      const value = parseFloat(raw);
+      const key = { 'ref-lat': 'ref_lat', 'ref-lon': 'ref_lon', 'e-we': 'e_we', 'e-sn': 'e_sn' }[id];
+      if (key) {
+        if (!Number.isFinite(value)) throw new Error('Enter a valid domain coordinate or dimension.');
+        if (key === 'ref_lat' && Math.abs(value) > 90) throw new Error('Reference latitude must be between -90° and 90°.');
+        if ((key === 'e_we' || key === 'e_sn') && (!Number.isInteger(value) || value < 10)) {
+          throw new Error('Grid dimensions must be integers of at least 10.');
+        }
+        dom[key] = key === 'ref_lon' ? WRFProjection.normalizeLon(value) : value;
+        if (key === 'ref_lat' || key === 'ref_lon') updateAutoProjectionParams();
+        const lat = parseFloat(document.getElementById('ref-lat').value);
+        const lon = parseFloat(document.getElementById('ref-lon').value);
+        if (!dom.bounds && Number.isFinite(lat) && Number.isFinite(lon)) dom.bounds = {};
+      } else if (id === 'e-vert') {
+        if (!Number.isInteger(value) || value < 28) throw new Error('Use at least 28 vertical levels.');
+        state.eVert = value;
+      } else {
+        const param = id === 'stand-lon' ? 'standLon' : id;
+        state.projectionAuto[param] = raw === '';
+        if (raw === '') updateAutoProjectionParams();
+        else {
+          if (!Number.isFinite(value)) throw new Error('Enter a valid projection parameter.');
+          state[param] = value;
+        }
+      }
+    }, !hadBounds);
   }
 
   function updateProjectionFields() {
     const sect = document.getElementById('truelat-section');
     const isLatLon = state.mapProj === 'lat-lon';
     sect.style.display = isLatLon ? 'none' : '';
-    document.getElementById('stand-lon').closest('.space-y-2').style.display = isLatLon ? 'none' : '';
+    document.getElementById('truelat2').closest('.space-y-2').style.display = state.mapProj === 'lambert' ? '' : 'none';
+    document.getElementById('stand-lon').closest('.space-y-2').style.display =
+      state.mapProj === 'lambert' || state.mapProj === 'polar' ? '' : 'none';
+    const info = document.getElementById('map-projection-info');
+    if (info) info.textContent = isLatLon
+      ? 'The outline uses an unrotated Lat-Lon grid. DX/DY are meters at the equator, exported to WPS as degrees.'
+      : 'The outline uses your WRF projection on a Web Mercator background. Projected WRF grids use DX = DY.';
   }
 
   // ===== Nesting =====
@@ -424,7 +466,7 @@ const WRFApp = (() => {
     // Populate parent dropdown
     const sel = document.getElementById('nest-parent');
     sel.innerHTML = '';
-    state.domains.forEach(d => {
+    state.domains.filter(d => d.bounds).forEach(d => {
       const opt = document.createElement('option');
       opt.value = d.id;
       opt.textContent = `d${WRFUtils.pad(d.id, 2)} (${(d.dx/1000).toFixed(1)} km)`;
@@ -483,11 +525,10 @@ const WRFApp = (() => {
       bounds: null
     });
 
-    renderDomainList();
-    closeNestModal();
-
     // Set draw tool to new domain color
     WRFMap.setActiveDrawDomain(newId);
+    renderDomainList();
+    closeNestModal();
 
     saveState();
   }
@@ -513,7 +554,9 @@ const WRFApp = (() => {
     });
 
     state.domains = state.domains.filter(d => !toRemove.includes(d.id));
+    toRemove.forEach(id => delete domainGeometries[id]);
     renderDomainList();
+    updateSummary();
     saveState();
   }
 
@@ -521,9 +564,10 @@ const WRFApp = (() => {
     const container = document.getElementById('domain-list');
     container.innerHTML = '';
 
-    state.domains.forEach((dom, idx) => {
+    state.domains.forEach(dom => {
       const card = document.createElement('div');
-      card.className = 'domain-card' + (dom.bounds ? '' : ' opacity-70');
+      card.className = 'domain-card' + (dom.bounds ? '' : ' opacity-70') +
+        (dom.id === WRFMap.activeDomainId ? ' active' : '');
       card.dataset.domain = dom.id;
 
       const dStr = `d${WRFUtils.pad(dom.id, 2)}`;
@@ -534,12 +578,15 @@ const WRFApp = (() => {
       } else if (dom.id > 1) {
         infoText += ' — draw on map';
       }
+      const parent = state.domains.find(d => d.id === dom.parent_id);
+      const errors = dom.id > 1 && dom.bounds ? WRFDomain.validateNest(parent, dom) : [];
+      if (errors.length) infoText = errors[0];
 
       card.innerHTML = `
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <span class="domain-badge" style="background: ${WRFDomain.getColor(idx)}">${dStr}</span>
-            <span class="text-xs text-surface-400" id="${dStr}-info">${infoText}</span>
+            <span class="domain-badge" style="background: ${WRFDomain.getColor(dom.id - 1)}">${dStr}</span>
+            <span class="text-xs ${errors.length ? 'text-red-500' : 'text-surface-400'}" id="${dStr}-info">${infoText}</span>
           </div>
           ${dom.id > 1 ? `<button class="text-xs text-red-400 hover:text-red-600 px-2" data-remove="${dom.id}" title="Remove domain">✕</button>` : ''}
         </div>
@@ -1112,6 +1159,7 @@ const WRFApp = (() => {
           s.startDate = s.startDate ? new Date(s.startDate) : null;
           s.endDate   = s.endDate   ? new Date(s.endDate)   : null;
           if (!WRFDateTime.DATA_SOURCES[s.dataSource]) s.dataSource = 'GFS';
+          s.projectionAuto = s.projectionAuto || { truelat1: false, truelat2: false, standLon: false };
           Object.assign(state, s);
           saveState();
           closeModal();
@@ -1158,12 +1206,9 @@ const WRFApp = (() => {
 
   // ===== Restore from State =====
   function restoreFromState() {
-    // Restore domain rectangles on map
-    state.domains.forEach(dom => {
-      if (dom.bounds) {
-        WRFMap.setDomainRect(dom.id, dom.bounds.south, dom.bounds.north, dom.bounds.west, dom.bounds.east);
-      }
-    });
+    // Rebuild from namelist parameters, rather than cached geographic bounds.
+    WRFMap.clearDomains();
+    refreshDomains();
     if (state.domains[0].bounds) {
       WRFMap.fitBounds();
     }
@@ -1174,8 +1219,8 @@ const WRFApp = (() => {
     document.getElementById('dy').value = state.domains[0].dy;
     document.getElementById('e-vert').value = state.eVert;
 
-    if (state.domains[0].ref_lat) document.getElementById('ref-lat').value = state.domains[0].ref_lat;
-    if (state.domains[0].ref_lon) document.getElementById('ref-lon').value = state.domains[0].ref_lon;
+    document.getElementById('ref-lat').value = state.domains[0].ref_lat;
+    document.getElementById('ref-lon').value = state.domains[0].ref_lon;
     if (state.domains[0].e_we) document.getElementById('e-we').value = state.domains[0].e_we;
     if (state.domains[0].e_sn) document.getElementById('e-sn').value = state.domains[0].e_sn;
 
