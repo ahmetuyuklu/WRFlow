@@ -6,6 +6,7 @@ const WRFApp = (() => {
 
   // ===== Central State =====
   let state = {
+    schemaVersion: WRFConfig.SCHEMA_VERSION,
     currentStep: 1,
     mapProj: 'lambert',
     domains: [
@@ -58,6 +59,9 @@ const WRFApp = (() => {
     debugLevel: 0,
     intervalSecondsOverride: null,
     etaLevels: '',
+    numMetgridLevels: null,
+    mynnClosure: 2.5,
+    mynnEdmf: 1,
     // Advanced Physics
     shcuPhysics: 0,
     sfUrbanPhysics: 0,
@@ -75,6 +79,7 @@ const WRFApp = (() => {
     downloadDataDir: './wrf_data',
     outputDir: './wrf_output'
   };
+  const defaults = JSON.parse(JSON.stringify(state));
   let domainGeometries = {};
 
   // ===== State Persistence =====
@@ -93,15 +98,12 @@ const WRFApp = (() => {
     const binary = atob(encoded);
     const bytes  = Uint8Array.from(binary, c => c.charCodeAt(0));
     const s      = JSON.parse(new TextDecoder().decode(bytes));
-    s.startDate = s.startDate ? new Date(s.startDate) : null;
-    s.endDate   = s.endDate   ? new Date(s.endDate)   : null;
-    if (!WRFDateTime.DATA_SOURCES[s.dataSource]) s.dataSource = 'GFS';
-    s.projectionAuto = s.projectionAuto || { truelat1: false, truelat2: false, standLon: false };
-    Object.assign(state, s);
+    Object.assign(state, WRFConfig.importState(s, defaults));
   }
 
   function saveState() {
     try {
+      if (WRFConfig.validate(state, { draft: true }).length) return;
       const s = { ...state };
       s.startDate = s.startDate ? s.startDate.toISOString() : null;
       s.endDate = s.endDate ? s.endDate.toISOString() : null;
@@ -114,11 +116,7 @@ const WRFApp = (() => {
       const raw = sessionStorage.getItem('wrflow-state');
       if (!raw) return false;
       const s = JSON.parse(raw);
-      s.startDate = s.startDate ? new Date(s.startDate) : null;
-      s.endDate = s.endDate ? new Date(s.endDate) : null;
-      if (!WRFDateTime.DATA_SOURCES[s.dataSource]) s.dataSource = 'GFS';
-      s.projectionAuto = s.projectionAuto || { truelat1: false, truelat2: false, standLon: false };
-      Object.assign(state, s);
+      Object.assign(state, WRFConfig.importState(s, defaults));
       return true;
     } catch (e) { return false; }
   }
@@ -255,10 +253,14 @@ const WRFApp = (() => {
 
     // Domain update from map
     document.addEventListener('domain-updated', (e) => {
-      const { domainId, bounds, projectedRect } = e.detail;
+      const { domainId, bounds, projectedRect, operation, handle } = e.detail;
       const dom = state.domains.find(d => d.id === domainId);
       if (!dom) return;
       commitDomainChange(() => {
+        if (operation === 'resize') {
+          state.domains = WRFDomain.resizeDomains(state.domains, projectionConfig(), domainId, projectedRect, handle);
+          return;
+        }
         if (domainId === 1) {
           if (bounds) {
             dom.ref_lat = (bounds.south + bounds.north) / 2;
@@ -388,7 +390,7 @@ const WRFApp = (() => {
     domainGeometries = geometries;
     syncDomainFields();
     renderDomainList();
-    updateSummary();
+    refreshOutputs();
   }
 
   function commitDomainChange(change, fit = false) {
@@ -418,6 +420,11 @@ const WRFApp = (() => {
         if (key === 'ref_lat' && Math.abs(value) > 90) throw new Error('Reference latitude must be between -90° and 90°.');
         if ((key === 'e_we' || key === 'e_sn') && (!Number.isInteger(value) || value < 10)) {
           throw new Error('Grid dimensions must be integers of at least 10.');
+        }
+        if ((key === 'e_we' || key === 'e_sn') && dom.bounds) {
+          state.domains = WRFDomain.resizeDomains(state.domains, projectionConfig(), 1,
+            domainGeometries[1], 'ne', { [key]: value, [key === 'e_we' ? 'e_sn' : 'e_we']: dom[key === 'e_we' ? 'e_sn' : 'e_we'] });
+          return;
         }
         dom[key] = key === 'ref_lon' ? WRFProjection.normalizeLon(value) : value;
         if (key === 'ref_lat' || key === 'ref_lon') updateAutoProjectionParams();
@@ -503,8 +510,8 @@ const WRFApp = (() => {
       showToast('Parent domain not found.', 'warning');
       return;
     }
-    if (!Number.isInteger(ratio) || ratio < 1 || ratio % 2 === 0) {
-      showToast('Grid ratio must be a positive odd number (e.g. 3, 5, 7).', 'warning');
+    if (!Number.isInteger(ratio) || ratio < 3 || ratio % 2 === 0) {
+      showToast('Grid ratio must be an odd number of at least 3 (e.g. 3, 5, 7).', 'warning');
       return;
     }
 
@@ -529,6 +536,7 @@ const WRFApp = (() => {
     WRFMap.setActiveDrawDomain(newId);
     renderDomainList();
     closeNestModal();
+    refreshOutputs();
 
     saveState();
   }
@@ -553,10 +561,13 @@ const WRFApp = (() => {
       WRFMap.removeDomainLayer(id);
     });
 
-    state.domains = state.domains.filter(d => !toRemove.includes(d.id));
-    toRemove.forEach(id => delete domainGeometries[id]);
+    const selected = WRFMap.activeDomainId;
+    const renumbered = WRFDomain.renumberDomains(state.domains.filter(d => !toRemove.includes(d.id)));
+    state.domains = renumbered.domains;
+    WRFMap.clearDomains();
+    refreshDomains();
+    WRFMap.setActiveDrawDomain(renumbered.ids.get(selected) || 1);
     renderDomainList();
-    updateSummary();
     saveState();
   }
 
@@ -657,11 +668,12 @@ const WRFApp = (() => {
       recalcTime();
     });
     document.getElementById('run-duration').addEventListener('change', (e) => {
-      state.durationHours = parseInt(e.target.value) || 24;
+      state.durationHours = e.target.value === '' ? NaN : Number(e.target.value);
       recalcTime();
     });
     document.getElementById('start-fh').addEventListener('change', (e) => {
-      state.startForecastHour = parseInt(e.target.value) || 0;
+      state.startForecastHour = e.target.value === '' ? NaN : Number(e.target.value);
+      updateTimeConstraints();
       recalcTime();
     });
 
@@ -710,7 +722,7 @@ const WRFApp = (() => {
     if (startFhInput) startFhInput.step = state.dataSource === 'GFS' ? (state.gfsInterval || 3) : 1;
 
     // Duration max
-    durationInput.max = maxDuration;
+    durationInput.max = state.dataSource === 'GFS' ? Math.max(0, maxDuration - state.startForecastHour) : maxDuration;
     if (state.durationHours > maxDuration) {
       state.durationHours = maxDuration;
       durationInput.value = state.durationHours;
@@ -721,19 +733,25 @@ const WRFApp = (() => {
   }
 
   function recalcTime() {
-    if (!state.startDateStr) return;
-
     const dur = WRFDateTime.splitDuration(state.durationHours);
-    state.startDate = new Date(state.startDateStr + 'T' + WRFUtils.pad(state.startHour, 2) + ':00:00Z');
-    state.endDate = WRFDateTime.calcEndDate(state.startDateStr, state.startHour, state.durationHours);
-
-    document.getElementById('computed-run-days').textContent = dur.run_days;
-    document.getElementById('computed-run-hours').textContent = dur.run_hours;
-    document.getElementById('computed-interval').textContent = state.intervalSeconds;
-    document.getElementById('computed-end-date').textContent = WRFUtils.toDisplayDate(state.endDate);
-
-    // Validate
+    document.getElementById('computed-run-days').textContent = Number.isFinite(dur.run_days) ? dur.run_days : '--';
+    document.getElementById('computed-run-hours').textContent = Number.isFinite(dur.run_hours) ? dur.run_hours : '--';
     const warnings = WRFDateTime.validate(state.dataSource, state.startDateStr, state.durationHours);
+    try {
+      const time = WRFDateTime.getTimeline(state);
+      state.startDate = time.start; state.endDate = time.end; state.intervalSeconds = time.interval;
+      document.getElementById('computed-end-date').textContent = WRFUtils.toDisplayDate(time.end);
+      document.getElementById('computed-boundary-note').textContent =
+        `Simulation starts ${WRFUtils.toDisplayDate(time.start)}. Boundary data extends through ${WRFUtils.toDisplayDate(time.dataEnd)}.`;
+      if (state.dataSource === 'GFS' && time.cycle > new Date()) warnings.push('The selected GFS cycle is in the future.');
+      if (state.dataSource === 'ERA5' && time.dataEnd > new Date(Date.now() - 5 * 86400000)) warnings.push('The end of the ERA5 data request may not be available yet.');
+    } catch (error) {
+      state.startDate = null; state.endDate = null;
+      warnings.push(error.message);
+      document.getElementById('computed-end-date').textContent = '--';
+      document.getElementById('computed-boundary-note').textContent = '';
+    }
+    document.getElementById('computed-interval').textContent = state.intervalSecondsOverride ?? state.intervalSeconds;
     const warningDiv = document.getElementById('time-warnings');
     const warningText = document.getElementById('time-warning-text');
     if (warnings.length > 0) {
@@ -744,6 +762,17 @@ const WRFApp = (() => {
     }
 
     saveState();
+    refreshOutputs();
+  }
+
+  function syncTimeUI() {
+    document.getElementById('start-date').value = state.startDateStr;
+    document.getElementById('run-duration').value = state.durationHours;
+    document.getElementById('start-fh').value = state.startForecastHour;
+    document.getElementById('gfs-interval').value = state.gfsInterval;
+    document.querySelectorAll('input[name="data-source"]').forEach(radio => { radio.checked = radio.value === state.dataSource; });
+    updateTimeConstraints();
+    recalcTime();
   }
 
   // ===== Physics (Step 3) =====
@@ -770,6 +799,7 @@ const WRFApp = (() => {
       select.addEventListener('change', () => {
         state.physics[param] = parseInt(select.value);
         validatePhysics();
+        refreshOutputs();
         saveState();
       });
     });
@@ -783,6 +813,7 @@ const WRFApp = (() => {
         if (select) select.value = val;
       });
       validatePhysics();
+      refreshOutputs();
       saveState();
     });
   }
@@ -810,12 +841,12 @@ const WRFApp = (() => {
   }
 
   function validatePhysics() {
-    const warnings = WRFPhysics.validate(
+    const warnings = [...new Set([...WRFPhysics.validate(
       state.physics.bl_pbl_physics,
       state.physics.sf_sfclay_physics,
       state.physics.cu_physics,
       state.domains[0].dx
-    );
+    ), ...WRFPhysics.configurationErrors(state)])];
 
     const warnDiv = document.getElementById('physics-warnings');
     const warnList = document.getElementById('physics-warning-list');
@@ -864,7 +895,9 @@ const WRFApp = (() => {
       if (!el) return;
       el.addEventListener('change', (e) => {
         state[key] = transform ? transform(e.target.value) : e.target.value;
-        updateNamelists();
+        if (key === 'intervalSecondsOverride') recalcTime();
+        validatePhysics();
+        refreshOutputs();
         saveState();
       });
     };
@@ -889,6 +922,9 @@ const WRFApp = (() => {
     bindAdv('adv-sf-lake-physics',   'sfLakePhysics',           Number);
     bindAdv('adv-sst-update',        'sstUpdate',               Number);
     bindAdv('adv-geog-path',         'geogDataPath',            v => v || '/path/to/WPS_GEOG/');
+    bindAdv('adv-num-metgrid-levels','numMetgridLevels',        v => v ? Number(v) : null);
+    bindAdv('adv-bl-mynn-closure',  'mynnClosure',             Number);
+    bindAdv('adv-bl-mynn-edmf',     'mynnEdmf',                Number);
   }
 
   function syncAdvancedUI() {
@@ -917,12 +953,18 @@ const WRFApp = (() => {
     setVal('adv-sf-urban-physics',   state.sfUrbanPhysics);
     setVal('adv-sf-lake-physics',    state.sfLakePhysics);
     setVal('adv-sst-update',         state.sstUpdate);
+    setVal('adv-num-metgrid-levels', state.numMetgridLevels ?? '');
+    setVal('adv-bl-mynn-closure',    state.mynnClosure);
+    setVal('adv-bl-mynn-edmf',       state.mynnEdmf);
+    document.getElementById('adv-num-metgrid-levels').placeholder = `auto (${state.dataSource === 'ERA5' ? 38 : 42}; verified at runtime)`;
   }
 
   function updateNamelists() {
-    if (!state.startDate || !state.domains[0].bounds) {
-      document.getElementById('namelist-wps-output').textContent = '⚠ Configure domains and time settings first.';
-      document.getElementById('namelist-input-output').textContent = '⚠ Configure domains and time settings first.';
+    const errors = WRFConfig.validate(state);
+    document.querySelectorAll('#step-4 .btn-copy, #step-4 .btn-download').forEach(btn => { btn.disabled = errors.length > 0; });
+    if (errors.length) {
+      document.getElementById('namelist-wps-output').textContent = '⚠ ' + errors.join('\n');
+      document.getElementById('namelist-input-output').textContent = '⚠ ' + errors.join('\n');
       return;
     }
 
@@ -931,6 +973,12 @@ const WRFApp = (() => {
 
     document.getElementById('namelist-wps-output').textContent = wpsText;
     document.getElementById('namelist-input-output').textContent = inputText;
+  }
+
+  function refreshOutputs() {
+    updateSummary();
+    updateNamelists();
+    updateScripts();
   }
 
   // ===== Scripts (Step 5) =====
@@ -948,22 +996,22 @@ const WRFApp = (() => {
     // WRF/WPS path inputs
     document.getElementById('wps-dir').addEventListener('change', (e) => {
       state.wpsDir = e.target.value || '/path/to/WPS';
-      updateScripts();
+      refreshOutputs();
       saveState();
     });
     document.getElementById('wrf-dir').addEventListener('change', (e) => {
       state.wrfDir = e.target.value || '/path/to/WRF';
-      updateScripts();
+      refreshOutputs();
       saveState();
     });
     document.getElementById('download-data-dir').addEventListener('change', (e) => {
       state.downloadDataDir = e.target.value || './wrf_data';
-      updateScripts();
+      refreshOutputs();
       saveState();
     });
     document.getElementById('output-dir').addEventListener('change', (e) => {
       state.outputDir = e.target.value || './wrf_output';
-      updateScripts();
+      refreshOutputs();
       saveState();
     });
 
@@ -996,8 +1044,9 @@ const WRFApp = (() => {
 
     // Download All button
     document.getElementById('btn-download-all').addEventListener('click', () => {
-      if (!state.startDate || !state.domains[0].bounds) {
-        showToast('Configure domains and time settings first.', 'warning');
+      const errors = WRFConfig.validate(state);
+      if (errors.length) {
+        showToast(errors[0], 'warning');
         return;
       }
       const wps = WRFNamelistWPS.generate(state);
@@ -1014,9 +1063,11 @@ const WRFApp = (() => {
   }
 
   function updateScripts() {
-    if (!state.startDate || !state.domains[0].bounds) {
-      document.getElementById('download-script-output').textContent = '⚠ Configure domains and time settings first.';
-      document.getElementById('run-script-output').textContent = '⚠ Configure domains and time settings first.';
+    const errors = WRFConfig.validate(state);
+    document.querySelectorAll('#step-5 .btn-copy, #step-5 .btn-download, #btn-download-all').forEach(btn => { btn.disabled = errors.length > 0; });
+    if (errors.length) {
+      document.getElementById('download-script-output').textContent = '⚠ ' + errors.join('\n');
+      document.getElementById('run-script-output').textContent = '⚠ ' + errors.join('\n');
       return;
     }
 
@@ -1041,6 +1092,8 @@ const WRFApp = (() => {
     document.addEventListener('click', (e) => {
       const copyBtn = e.target.closest('.btn-copy');
       if (copyBtn) {
+        const errors = WRFConfig.validate(state);
+        if (errors.length) { showToast(errors[0], 'warning'); return; }
         const targetId = copyBtn.dataset.target;
         const text = document.getElementById(targetId).textContent;
         WRFUtils.copyToClipboard(text).then(() => {
@@ -1057,6 +1110,8 @@ const WRFApp = (() => {
 
       const dlBtn = e.target.closest('.btn-download');
       if (dlBtn) {
+        const errors = WRFConfig.validate(state);
+        if (errors.length) { showToast(errors[0], 'warning'); return; }
         const targetId = dlBtn.dataset.target;
         const text = document.getElementById(targetId).textContent;
         const filename = dlBtn.dataset.filename || 'output.txt';
@@ -1119,7 +1174,7 @@ const WRFApp = (() => {
 
     const openModal = () => {
       const encoded = serializeState();
-      urlInput.value = `${location.origin}${location.pathname}?s=${encoded}`;
+      urlInput.value = `${location.origin}${location.pathname}?s=${encodeURIComponent(encoded)}`;
       modal.classList.remove('hidden');
     };
     const closeModal = () => modal.classList.add('hidden');
@@ -1154,19 +1209,18 @@ const WRFApp = (() => {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = ev => {
+        const previous = { ...state, domains: state.domains.map(d => ({ ...d })), physics: { ...state.physics } };
         try {
-          const s = JSON.parse(ev.target.result);
-          s.startDate = s.startDate ? new Date(s.startDate) : null;
-          s.endDate   = s.endDate   ? new Date(s.endDate)   : null;
-          if (!WRFDateTime.DATA_SOURCES[s.dataSource]) s.dataSource = 'GFS';
-          s.projectionAuto = s.projectionAuto || { truelat1: false, truelat2: false, standLon: false };
-          Object.assign(state, s);
-          saveState();
+          const candidate = WRFConfig.importState(JSON.parse(ev.target.result), defaults);
+          Object.assign(state, candidate);
           closeModal();
           restoreFromState();
+          saveState();
           showToast('Configuration imported successfully.', 'info');
-        } catch {
-          showToast('Failed to import: invalid JSON file.', 'warning');
+        } catch (error) {
+          Object.assign(state, previous);
+          restoreFromState();
+          showToast(`Import failed: ${error.message}`, 'warning');
         }
       };
       reader.readAsText(file);
@@ -1260,7 +1314,10 @@ const WRFApp = (() => {
 
     updateProjectionFields();
     renderDomainList();
-    updateSummary();
+    syncTimeUI();
+    updatePhysicsUI();
+    syncAdvancedUI();
+    refreshOutputs();
 
     // Restore step
     goToStep(state.currentStep);

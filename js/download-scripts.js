@@ -27,7 +27,7 @@ const WRFDownloadScripts = (() => {
     'soil_temperature_level_3', 'soil_temperature_level_4',
     'volumetric_soil_water_layer_1', 'volumetric_soil_water_layer_2',
     'volumetric_soil_water_layer_3', 'volumetric_soil_water_layer_4',
-    'snow_depth', 'sea_surface_temperature', 'sea_ice_cover',
+    'snow_depth', 'snow_density', 'sea_surface_temperature', 'sea_ice_cover',
     'land_sea_mask', 'geopotential'
   ];
 
@@ -38,7 +38,7 @@ const WRFDownloadScripts = (() => {
       DOWNLOAD_AREA_BUFFER_DEG
     );
 
-    const startDate = state.startDate;
+    const startDate = state.timeline.cycle;
     const dateDir = WRFUtils.toGFSDateDir(startDate);
     const startHour = WRFUtils.pad(startDate.getUTCHours(), 2);
 
@@ -64,19 +64,23 @@ const WRFDownloadScripts = (() => {
 set -euo pipefail
 
 # Check for required commands
-for cmd in curl wget; do
+for cmd in curl; do
   if ! command -v \$cmd &> /dev/null; then
-    echo "WARNING: \$cmd not found. Install with: apt-get install curl wget (Linux) or brew install curl wget (macOS)"
+    echo "ERROR: \$cmd not found. Install curl before downloading."
+    exit 1
   fi
 done
 
 # Configuration
-OUTPUT_DIR="${state.downloadDataDir || './wrf_data'}"
+BASE_DIR=$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)
+DATA_ROOT=${WRFUtils.shellQuote(state.downloadDataDir)}
+case "\${DATA_ROOT}" in /*) ;; *) DATA_ROOT="\${BASE_DIR}/\${DATA_ROOT}" ;; esac
+OUTPUT_DIR="\${DATA_ROOT}/${WRFConfig.dataKey(state)}"
 DATE="${dateDir}"
 CYCLE="${startHour}"
-START_FH=${state.startForecastHour || 0}
-MAX_FH=${Math.min((state.startForecastHour || 0) + state.durationHours, (state.gfsInterval || 3) === 1 ? 120 : 384)}
-INTERVAL=${state.gfsInterval || 3}
+START_FH=${state.timeline.startForecastHour}
+MAX_FH=${state.timeline.endForecastHour}
+INTERVAL=${state.timeline.interval / 3600}
 
 # Create output directory
 mkdir -p "\${OUTPUT_DIR}"
@@ -114,12 +118,17 @@ echo ""
 
 ERRORS=0
 
+valid_grib() {
+  [ -s "$1" ] && [ "$(dd if="$1" bs=4 count=1 2>/dev/null)" = "GRIB" ] &&
+    [ "$(tail -c 4 "$1" 2>/dev/null)" = "7777" ]
+}
+
 for FH in $(seq \${START_FH} \${INTERVAL} \${MAX_FH}); do
   FH3=$(printf "%03d" \${FH})
   FILENAME="gfs.t\${CYCLE}z.pgrb2.0p25.f\${FH3}"
   OUTFILE="\${OUTPUT_DIR}/\${FILENAME}"
 
-  if [ -f "\${OUTFILE}" ]; then
+  if valid_grib "\${OUTFILE}"; then
     if [ "\${PREFER_FULL_GFS}" -eq 1 ]; then
       SIZE_MB=$(du -m "\${OUTFILE}" | cut -f1)
       if [ "\${SIZE_MB}" -lt "\${MIN_FULL_SIZE_MB}" ]; then
@@ -148,7 +157,7 @@ for FH in $(seq \${START_FH} \${INTERVAL} \${MAX_FH}); do
   HTTP_CODE="\${HTTP_CODE: -3}"
   if ! [[ "\${HTTP_CODE}" =~ ^[0-9]{3}$ ]]; then HTTP_CODE="000"; fi
 
-  if [ "\${HTTP_CODE}" -eq 200 ] && [ -s "\${OUTFILE}" ]; then
+  if [ "\${HTTP_CODE}" -eq 200 ] && valid_grib "\${OUTFILE}"; then
     SIZE=$(du -h "\${OUTFILE}" | cut -f1)
     echo "OK (\${SIZE})"
   else
@@ -169,7 +178,7 @@ for FH in $(seq \${START_FH} \${INTERVAL} \${MAX_FH}); do
       HTTP_CODE_FB=$(curl -L -sS -A "\${USER_AGENT}" --retry 2 --retry-delay 2 --connect-timeout 30 -w "%{http_code}" -o "\${OUTFILE}" "\${FB_URL}" || true)
       HTTP_CODE_FB="\${HTTP_CODE_FB: -3}"
       if ! [[ "\${HTTP_CODE_FB}" =~ ^[0-9]{3}$ ]]; then HTTP_CODE_FB="000"; fi
-      if [ "\${HTTP_CODE_FB}" -eq 200 ] && [ -s "\${OUTFILE}" ]; then
+      if [ "\${HTTP_CODE_FB}" -eq 200 ] && valid_grib "\${OUTFILE}"; then
         SIZE=$(du -h "\${OUTFILE}" | cut -f1)
         echo "           FALLBACK OK (\${SIZE})"
       else
@@ -207,148 +216,84 @@ fi
       DOWNLOAD_AREA_BUFFER_DEG
     );
 
-    const startDate = state.startDate;
-    const endDate = state.endDate;
-
-    // Collect all dates in range
-    const dates = [];
-    const current = new Date(startDate);
-    while (current <= endDate) {
-      dates.push(new Date(current));
-      current.setUTCDate(current.getUTCDate() + 1);
-    }
-
-    // Collect unique years, months, days
-    const years = [...new Set(dates.map(d => d.getUTCFullYear()))];
-    const months = [...new Set(dates.map(d => d.getUTCMonth() + 1))];
-    const days = [...new Set(dates.map(d => d.getUTCDate()))];
-
-    // Hours: all 24 for ERA5
-    const hours = Array.from({ length: 24 }, (_, i) => WRFUtils.pad(i, 2) + ':00');
-
-    // Area: [North, West, South, East]
-    const area = `[${bbox.north.toFixed(2)}, ${bbox.west.toFixed(2)}, ${bbox.south.toFixed(2)}, ${bbox.east.toFixed(2)}]`;
-
-    let script = `#!/usr/bin/env python3
+    const requests = WRFDateTime.era5Requests(state.timeline);
+    return `#!/usr/bin/env python3
+"""WRFlow ERA5 download. Requires cdsapi, ~/.cdsapirc, and ecCodes grib_set.
+Requests exact UTC boundary times, grouped by calendar day. Files are converted
+to simple-packed GRIB1 for the WPS Vtable.ERA-interim.pl mapping.
 """
-WRFlow — ERA5 Data Download Script
-Generated: ${new Date().toISOString().slice(0, 19)}Z
-Source: ECMWF ERA5 Reanalysis (CDS API)
-Domain bounding box (with ±${DOWNLOAD_AREA_BUFFER_DEG}° buffer):
-  North: ${bbox.north.toFixed(2)}  South: ${bbox.south.toFixed(2)}
-  West:  ${bbox.west.toFixed(2)}  East:  ${bbox.east.toFixed(2)}
-
-Prerequisites:
-  pip install cdsapi
-  Create ~/.cdsapirc with your CDS API key:
-    url: https://cds.climate.copernicus.eu/api
-    key: <YOUR-API-KEY>
-  Install ecCodes tools (needed to fix GRIB2 packing for ungrib.exe):
-    Ubuntu/Debian: sudo apt install -y libeccodes-tools
-    Conda:         conda install -c conda-forge eccodes
-"""
-
-import sys
-import subprocess
+import json
 import os
+from pathlib import Path
+import shutil
+import subprocess
+import zipfile
+import cdsapi
 
-# Ensure cdsapi is installed
-try:
-    import cdsapi
-except ImportError:
-    print("Installing cdsapi...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "cdsapi", "-q"])
-    import cdsapi
+if not shutil.which("grib_set"):
+    raise SystemExit("Install ecCodes tools (grib_set) before downloading ERA5.")
+BASE_DIR = Path(__file__).resolve().parent
+DATA_ROOT = Path(${JSON.stringify(state.downloadDataDir)})
+if not DATA_ROOT.is_absolute():
+    DATA_ROOT = BASE_DIR / DATA_ROOT
+OUTPUT_DIR = DATA_ROOT / ${JSON.stringify(WRFConfig.dataKey(state))}
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+REQUESTS = json.loads(${JSON.stringify(JSON.stringify(requests))})
+AREA = [${[bbox.north, bbox.west, bbox.south, bbox.east].map(v => v.toFixed(2)).join(', ')}]
+PL_VARS = ${JSON.stringify(ERA5_PL_VARS)}
+PL_LEVELS = ${JSON.stringify(ERA5_PL_LEVELS)}
+SFC_VARS = ${JSON.stringify(ERA5_SFC_VARS)}
 
-OUTPUT_DIR = "${state.downloadDataDir || './wrf_data'}"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+def valid_grib(path):
+    if not path.exists() or path.stat().st_size < 8:
+        return False
+    with path.open("rb") as stream:
+        first = stream.read(4)
+        stream.seek(-4, os.SEEK_END)
+        return first == b"GRIB" and stream.read(4) == b"7777"
 
-# ---------------------------------------------------------------------------
-# Helper: convert GRIB2 packing to grid_simple so ungrib.exe can read it.
-# ECMWF uses AEC/CCSDS compression (DRS Template 42) which older WPS builds
-# do not support. grib_set re-packs the file in-place using simple packing.
-# ---------------------------------------------------------------------------
-def fix_grib_packing(path):
-    tmp = path + ".tmp"
-    result = subprocess.run(
-        ["grib_set", "-s", "packingType=grid_simple", path, tmp],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print(f"  WARNING: grib_set failed for {path}:")
-        print(f"    {result.stderr.strip()}")
-        print("  Make sure libeccodes-tools is installed and try again.")
-        if os.path.exists(tmp):
-            os.remove(tmp)
-    else:
-        os.replace(tmp, path)
-        print(f"  Packing fixed: {os.path.basename(path)}")
+def unpack_and_convert(path):
+    # Some CDS responses contain several GRIB members in a zip archive.
+    if zipfile.is_zipfile(path):
+        combined = path.with_suffix(".combined")
+        with zipfile.ZipFile(path) as archive, combined.open("wb") as out:
+            members = [name for name in archive.namelist() if name.endswith((".grib", ".grb", ".grib2"))]
+            if not members:
+                raise RuntimeError("CDS archive contains no GRIB files.")
+            for name in sorted(members):
+                with archive.open(name) as source:
+                    shutil.copyfileobj(source, out)
+        combined.replace(path)
+    if not valid_grib(path):
+        raise RuntimeError(f"CDS did not return valid GRIB data: {path}")
+    tmp = path.with_suffix(".tmp")
+    subprocess.run(["grib_set", "-r", "-s", "edition=1,packingType=grid_simple", str(path), str(tmp)], check=True)
+    if not valid_grib(tmp):
+        raise RuntimeError("ecCodes conversion did not produce valid GRIB.")
+    tmp.replace(path)
 
-c = cdsapi.Client()
-
-# ----- Pressure Level Data -----
-print("Downloading ERA5 pressure level data...")
-
-c.retrieve(
-    "reanalysis-era5-pressure-levels",
-    {
-        "product_type": "reanalysis",
-        "variable": [
-${ERA5_PL_VARS.map(v => `            "${v}"`).join(',\n')},
-        ],
-        "pressure_level": [
-${ERA5_PL_LEVELS.map(l => `            "${l}"`).join(',\n')},
-        ],
-        "year": [${years.map(y => `"${y}"`).join(', ')}],
-        "month": [${months.map(m => `"${WRFUtils.pad(m, 2)}"`).join(', ')}],
-        "day": [${days.map(d => `"${WRFUtils.pad(d, 2)}"`).join(', ')}],
-        "time": [
-${hours.map(h => `            "${h}"`).join(',\n')},
-        ],
-        "area": ${area},
-        "data_format": "grib",
-    },
-    os.path.join(OUTPUT_DIR, "era5_pressure_levels.grib"),
-)
-
-print("Pressure level data downloaded.")
-print("Converting packing for ungrib.exe compatibility...")
-fix_grib_packing(os.path.join(OUTPUT_DIR, "era5_pressure_levels.grib"))
-
-# ----- Single (Surface) Level Data -----
-print("Downloading ERA5 single level data...")
-
-c.retrieve(
-    "reanalysis-era5-single-levels",
-    {
-        "product_type": "reanalysis",
-        "variable": [
-${ERA5_SFC_VARS.map(v => `            "${v}"`).join(',\n')},
-        ],
-        "year": [${years.map(y => `"${y}"`).join(', ')}],
-        "month": [${months.map(m => `"${WRFUtils.pad(m, 2)}"`).join(', ')}],
-        "day": [${days.map(d => `"${WRFUtils.pad(d, 2)}"`).join(', ')}],
-        "time": [
-${hours.map(h => `            "${h}"`).join(',\n')},
-        ],
-        "area": ${area},
-        "data_format": "grib",
-    },
-    os.path.join(OUTPUT_DIR, "era5_single_levels.grib"),
-)
-
-print("Single level data downloaded.")
-print("Converting packing for ungrib.exe compatibility...")
-fix_grib_packing(os.path.join(OUTPUT_DIR, "era5_single_levels.grib"))
-
-print(f"All ERA5 data saved to {OUTPUT_DIR}/")
-print("You can now run ungrib.exe. Link or copy the .grib files to your WPS run directory.")
+client = cdsapi.Client()
+for day in REQUESTS:
+    stamp = day["year"] + day["month"] + day["day"]
+    for kind, dataset, variables in [
+        ("pressure", "reanalysis-era5-pressure-levels", PL_VARS),
+        ("surface", "reanalysis-era5-single-levels", SFC_VARS),
+    ]:
+        request = dict(day, product_type="reanalysis", variable=variables,
+                       area=AREA, data_format="grib", download_format="unarchived")
+        if kind == "pressure":
+            request["pressure_level"] = PL_LEVELS
+        target = OUTPUT_DIR / f"era5_{kind}_{stamp}.grib"
+        if not valid_grib(target):
+            client.retrieve(dataset, request, str(target))
+        unpack_and_convert(target)
+        print(f"Ready: {target}")
+print(f"ERA5 boundary data is ready in {OUTPUT_DIR}")
 `;
-
-    return script;
   }
 
   function generate(state) {
+    state = WRFConfig.prepare(state);
     if (state.dataSource === 'ERA5') return generateERA5(state);
     return generateGFS(state);
   }
@@ -360,7 +305,7 @@ print("You can now run ungrib.exe. Link or copy the .grib files to your WPS run 
 
   function getInfo(source) {
     if (source === 'ERA5') {
-      return 'Python script using the CDS API. Requires: pip install cdsapi and a ~/.cdsapirc file with your API key from the Copernicus Climate Data Store.';
+      return 'Python script using the CDS API. Requires cdsapi, ecCodes grib_set, and a ~/.cdsapirc file with your CDS API key. Requests exact UTC boundary times and converts GRIB data for WPS compatibility.';
     }
     return 'Bash script using cURL to download clipped GFS GRIB2 subsets by default, with optional AWS full-file fallback when NOMADS fails. Run with: bash download_gfs.sh';
   }

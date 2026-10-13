@@ -407,6 +407,7 @@
                 <div id="computed-end-date" class="font-mono font-semibold text-xs">--</div>
               </div>
             </div>
+            <p id="computed-boundary-note" class="text-xs text-surface-500 dark:text-surface-400"></p>
           </div>
 
           <!-- Warnings -->
@@ -560,11 +561,11 @@
                 <input type="text" id="adv-geog-path" class="input-field text-xs" placeholder="/path/to/WPS_GEOG/" value="/path/to/WPS_GEOG/">
               </div>
               <div class="space-y-2">
-                <label class="label-text text-xs">DATA_DIR <span class="tooltip-trigger" data-tooltip="Exact folder where downloaded GFS/ERA5 files will be stored. Used as OUTPUT_DIR in the download script and DATA_DIR in the run script.">?</span></label>
+                <label class="label-text text-xs">DATA_DIR <span class="tooltip-trigger" data-tooltip="Root data folder. Downloads are isolated by cycle/time range and area; the run script selects the matching dataset. Relative paths are based on the scripts' directory.">?</span></label>
                 <input type="text" id="download-data-dir" class="input-field text-xs" placeholder="./wrf_data" value="./wrf_data">
               </div>
               <div class="space-y-2">
-                <label class="label-text text-xs">WRF_OUTPUT_DIR <span class="tooltip-trigger" data-tooltip="Folder where WRF output files (wrfout_*, rsl.*, logs) will be copied after a successful run.">?</span></label>
+                <label class="label-text text-xs">WRF_OUTPUT_DIR <span class="tooltip-trigger" data-tooltip="Output root. Each invocation creates fresh WPS/WRF work directories here and copies successful wrfout files to this folder. Relative paths are based on the scripts' directory.">?</span></label>
                 <input type="text" id="output-dir" class="input-field text-xs" placeholder="./wrf_output" value="./wrf_output">
               </div>
             </div>
@@ -625,6 +626,14 @@
               <!-- TAB 1: Advanced Physics -->
               <div id="adv-physics" class="adv-tab-content px-4 pb-4 pt-3">
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">MYNN closure <span class="tooltip-trigger" data-tooltip="MYNN PBL option 5 in WRF 4.5+ uses bl_mynn_closure to select level 2.5 or 3.0.">?</span></label>
+                    <select id="adv-bl-mynn-closure" class="input-field text-xs"><option value="2.5" selected>2.5</option><option value="3">3.0</option></select>
+                  </div>
+                  <div class="space-y-1">
+                    <label class="label-text text-xs">MYNN EDMF</label>
+                    <select id="adv-bl-mynn-edmf" class="input-field text-xs"><option value="1" selected>1 — On</option><option value="0">0 — Off (for Deng)</option></select>
+                  </div>
                   <div class="space-y-1">
                     <label class="label-text text-xs">shcu_physics <span class="tooltip-trigger" data-tooltip="Independent shallow convection scheme (not tied to deep convection). 0=Off. 2=UW/Park-Bretherton (CESM). 3=GRIMS (couples to YSU PBL). 5=Deng (MYNN/MYJ only, v4.1+).">?</span></label>
                     <select id="adv-shcu-physics" class="input-field text-xs">
@@ -719,7 +728,7 @@
               <div id="adv-timeio" class="adv-tab-content hidden px-4 pb-4 pt-3">
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div class="space-y-1">
-                    <label class="label-text text-xs">interval_seconds <span class="tooltip-trigger" data-tooltip="Time interval between incoming lateral boundary condition files (seconds). Leave blank to use the auto value from your data source (ERA5=21600, GFS-3h=10800, GFS-1h=3600).">?</span></label>
+                    <label class="label-text text-xs">interval_seconds <span class="tooltip-trigger" data-tooltip="Boundary interval shared by WPS, WRF, and downloads. Leave blank for ERA5=3600, GFS-3h=10800, GFS-1h=3600. Overrides must be whole multiples of the selected data interval.">?</span></label>
                     <input type="number" id="adv-interval-seconds" class="input-field text-xs" min="3600" step="3600" placeholder="auto">
                   </div>
                   <div class="space-y-1">
@@ -745,8 +754,12 @@
               <div id="adv-domain" class="adv-tab-content hidden px-4 pb-4 pt-3">
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div class="space-y-1">
+                    <label class="label-text text-xs">num_metgrid_levels <span class="tooltip-trigger" data-tooltip="Leave blank to detect actual met_em dimensions in the run script. Standalone namelists default to GFS=42 and ERA5=38. A manual value is checked against the files before real.exe.">?</span></label>
+                    <input type="number" id="adv-num-metgrid-levels" class="input-field text-xs" min="2" step="1" placeholder="auto (verified at runtime)">
+                  </div>
+                  <div class="space-y-1">
                     <label class="label-text text-xs">e_vert <span class="tooltip-trigger" data-tooltip="Number of vertical eta levels. 45 is standard. More levels = finer vertical resolution but slower runtime.">?</span></label>
-                    <input type="number" id="adv-e-vert" class="input-field text-xs" min="10" max="100" value="45">
+                    <input type="number" id="adv-e-vert" class="input-field text-xs" min="28" max="100" value="45">
                   </div>
                   <div class="space-y-1">
                     <label class="label-text text-xs">p_top_requested (Pa) <span class="tooltip-trigger" data-tooltip="Model top pressure in Pascals. 5000 Pa = 50 hPa (standard). Use 1000 Pa for deep atmosphere / climate runs.">?</span></label>
@@ -760,7 +773,7 @@
                     </select>
                   </div>
                   <div class="space-y-1 sm:col-span-1">
-                    <label class="label-text text-xs">eta_levels <span class="tooltip-trigger" data-tooltip="Optional: explicit comma-separated eta level values from 1.000 (surface) to 0.000 (model top). Overrides e_vert if provided. Must start at 1.000 and end at 0.000.">?</span></label>
+                    <label class="label-text text-xs">eta_levels <span class="tooltip-trigger" data-tooltip="Optional comma-separated eta levels. The count must equal e_vert; values must decrease strictly from 1.000 (surface) to 0.000 (top).">?</span></label>
                     <textarea id="adv-eta-levels" class="input-field text-xs font-mono" rows="2" style="resize:vertical" placeholder="1.000, 0.993, 0.983, …, 0.000"></textarea>
                   </div>
                 </div>
@@ -804,7 +817,7 @@
                 <label class="label-text text-xs">Scheduler Mode</label>
                 <div class="flex gap-4">
                   <label class="flex items-center gap-1.5 text-xs cursor-pointer">
-                    <input type="radio" name="scheduler" value="local" checked class="accent-primary-500"> Local / Auto
+                    <input type="radio" name="scheduler" value="local" checked class="accent-primary-500"> Local / Single process
                   </label>
                   <label class="flex items-center gap-1.5 text-xs cursor-pointer">
                     <input type="radio" name="scheduler" value="mpi" class="accent-primary-500"> MPI
@@ -815,8 +828,8 @@
                 </div>
               </div>
               <div class="space-y-1" id="num-procs-group">
-                <label class="label-text text-xs">CPU Processes (NUM_PROCS)
-                  <span class="tooltip-trigger" data-tooltip="Number of MPI tasks to use for wrf.exe. Set to number of CPU cores available.">?</span>
+                <label class="label-text text-xs">MPI Processes (NUM_PROCS)
+                  <span class="tooltip-trigger" data-tooltip="Processes for both real.exe and wrf.exe in MPI mode. Local runs one process; Slurm uses its configured task allocation.">?</span>
                 </label>
                 <input type="number" id="num-procs" class="input-field text-xs w-28" min="1" max="9999" value="4">
               </div>
@@ -980,6 +993,7 @@
   <script src="js/projection.js"></script>
   <script src="js/domain.js"></script>
   <script src="js/datetime.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/namelist-wps.js"></script>
   <script src="js/namelist-input.js"></script>
   <script src="js/download-scripts.js"></script>

@@ -104,6 +104,10 @@ const WRFUtils = (() => {
     return (' ' + key).padEnd(width);
   }
 
+  function shellQuote(value) {
+    return "'" + String(value).replace(/'/g, "'\\''") + "'";
+  }
+
   return {
     toWRFDate,
     toDisplayDate,
@@ -117,6 +121,7 @@ const WRFUtils = (() => {
     downloadFile,
     repeatVal,
     nlJoin,
-    nlKey
+    nlKey,
+    shellQuote
   };
 })();

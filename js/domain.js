@@ -179,6 +179,71 @@ const WRFDomain = (() => {
     return DOMAIN_COLORS[domainIndex % DOMAIN_COLORS.length];
   }
 
+  function renumberDomains(domains) {
+    const ordered = [], pending = [...domains], seen = new Set();
+    if (new Set(domains.map(d => d.id)).size !== domains.length) throw new Error('Domain IDs must be unique.');
+    while (pending.length) {
+      const index = pending.findIndex(d => d.id === 1 || seen.has(d.parent_id));
+      if (index < 0) throw new Error('Domain parents are missing or circular.');
+      const [dom] = pending.splice(index, 1);
+      ordered.push(dom);
+      seen.add(dom.id);
+    }
+    if (ordered[0]?.id !== 1) throw new Error('The parent domain d01 is required.');
+    const ids = new Map(ordered.map((d, i) => [d.id, i + 1]));
+    return { ids, domains: ordered.map(d => ({ ...d, id: ids.get(d.id), parent_id: ids.get(d.parent_id) })) };
+  }
+
+  // Resize in grid space, anchoring the opposite corner. Retaining this grid
+  // lattice lets children keep their geographic footprints exactly, including
+  // Mercator/Lat-Lon where changing ref_lon changes the coordinate origin.
+  function resizeDomains(domains, config, domainId, rect, handle = 'ne', dimensions = {}) {
+    const result = domains.map(d => ({ ...d }));
+    const before = buildGeometries(domains, config);
+    const dom = result.find(d => d.id === domainId);
+    const old = before[domainId];
+    if (!dom || !old) throw new Error('Draw the domain before resizing it.');
+    const ratio = domainId === 1 ? 3 : dom.parent_grid_ratio;
+    dom.e_we = dimensions.e_we ?? gridPoints(rect.xMax - rect.xMin, old.dx, ratio, 10);
+    dom.e_sn = dimensions.e_sn ?? gridPoints(rect.yMax - rect.yMin, old.dy, ratio, 10);
+    const width = (dom.e_we - 1) * old.dx, height = (dom.e_sn - 1) * old.dy;
+    const xMin = handle.includes('w') ? old.xMax - width : old.xMin;
+    const yMin = handle.includes('s') ? old.yMax - height : old.yMin;
+    if (domainId === 1) {
+      const center = old.projection.inverse(xMin + width / 2, yMin + height / 2);
+      dom.ref_lat = center.lat;
+      dom.ref_lon = WRFProjection.normalizeLon(center.lon);
+    } else {
+      const parent = before[dom.parent_id];
+      dom.i_parent_start = Math.round((xMin - parent.xMin) / parent.dx) + 1;
+      dom.j_parent_start = Math.round((yMin - parent.yMin) / parent.dy) + 1;
+    }
+    const descendants = new Set([domainId]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      result.forEach(d => {
+        if (d.id !== domainId && descendants.has(d.parent_id) && !descendants.has(d.id)) {
+          descendants.add(d.id); grew = true;
+        }
+      });
+    }
+    let after = buildGeometries(result.filter(d => d.id === domainId || !descendants.has(d.id)), config);
+    result.filter(d => d.id !== domainId && d.parent_id === domainId && d.bounds).forEach(child => {
+      const [lat, lon] = before[child.id].boundary[0];
+      const parent = after[domainId];
+      const position = parent.projection.forward(lat, lon);
+      child.i_parent_start = Math.round((position.x - parent.xMin) / parent.dx) + 1;
+      child.j_parent_start = Math.round((position.y - parent.yMin) / parent.dy) + 1;
+    });
+    after = buildGeometries(result, config);
+    for (const child of result.filter(d => d.id > 1 && d.bounds)) {
+      const errors = validateNest(result.find(d => d.id === child.parent_id), child);
+      if (errors.length) throw new Error(`Resize cannot fit d${WRFUtils.pad(child.id, 2)}: ${errors[0]}`);
+    }
+    return result;
+  }
+
   return { calcGrid, calcProjectionParams, calcNest, calcNestRect, projectBounds,
-    buildGeometries, rectGeometry, gridPoints, validateNest, getColor, DOMAIN_COLORS };
+    buildGeometries, rectGeometry, gridPoints, validateNest, resizeDomains, renumberDomains, getColor, DOMAIN_COLORS };
 })();

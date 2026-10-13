@@ -1,15 +1,6 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-
-const context = vm.createContext({ console });
-for (const file of ['utils', 'projection', 'domain', 'namelist-wps']) {
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', `${file}.js`), 'utf8'), context);
-}
-const { WRFProjection: Projection, WRFDomain: Domain, WRFUtils: Utils, WRFNamelistWPS: WPS } =
-  vm.runInContext('({ WRFProjection, WRFDomain, WRFUtils, WRFNamelistWPS })', context);
+const { WRFProjection: Projection, WRFDomain: Domain, WRFUtils: Utils, WRFNamelistWPS: WPS, makeState } = require('./helpers');
 
 function close(actual, expected, tolerance = 1e-6) {
   assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
@@ -149,15 +140,58 @@ test('pole-enclosing domains include the pole in their data bounding box', () =>
 });
 
 test('Lat-Lon WPS spacing is angular while projected WPS spacing stays in meters', () => {
-  const state = { domains: [root({ dy: 18000 })], startDate: new Date('2026-01-01T00:00:00Z'),
-    endDate: new Date('2026-01-02T00:00:00Z'), intervalSeconds: 10800, ...lambert };
+  const state = makeState({ domains: [root()], ...lambert });
   const projected = WPS.generate(state);
   assert.match(projected, /dx\s*= 9000,/);
   state.mapProj = 'lat-lon';
+  state.domains[0].dy = 18000;
   const latlon = WPS.generate(state);
   close(Number(latlon.match(/\bdx\s*= ([\d.]+)/)[1]), 9000 / Projection.METERS_PER_DEGREE, 1e-12);
   close(Number(latlon.match(/\bdy\s*= ([\d.]+)/)[1]), 18000 / Projection.METERS_PER_DEGREE, 1e-12);
   assert.equal(state.domains[0].dx, 9000, 'Application spacing must remain in meters');
+});
+
+for (const config of [lambert, { mapProj: 'mercator', truelat1: 30 },
+  { mapProj: 'polar', truelat1: 90, standLon: 35 }, { mapProj: 'lat-lon' }]) {
+  test(`${config.mapProj}: all parent corner resizes preserve children and grandchildren geographically`, () => {
+    const domains = [root({ e_we: 301, e_sn: 301 }),
+      { id: 2, parent_id: 1, parent_grid_ratio: 3, i_parent_start: 101, j_parent_start: 101,
+        e_we: 91, e_sn: 91, dx: 3000, dy: 3000, ref_lat: 39, ref_lon: 35, bounds: {} },
+      { id: 3, parent_id: 2, parent_grid_ratio: 3, i_parent_start: 21, j_parent_start: 21,
+        e_we: 31, e_sn: 31, dx: 1000, dy: 1000, ref_lat: 39, ref_lon: 35, bounds: {} }];
+    const before = Domain.buildGeometries(domains, config);
+    for (const handle of ['sw', 'se', 'nw', 'ne']) {
+      const rect = { xMin: before[1].xMin, xMax: before[1].xMax,
+        yMin: before[1].yMin, yMax: before[1].yMax };
+      rect[handle.includes('w') ? 'xMin' : 'xMax'] += handle.includes('w') ? -270000 : 270000;
+      rect[handle.includes('s') ? 'yMin' : 'yMax'] += handle.includes('s') ? -270000 : 270000;
+      const resized = Domain.resizeDomains(domains, config, 1, rect, handle);
+      const after = Domain.buildGeometries(resized, config);
+      for (const id of [2, 3]) {
+        close(after[id].center.lat, before[id].center.lat, 1e-9);
+        close(Projection.normalizeLon(after[id].center.lon - before[id].center.lon), 0, 1e-9);
+        close(after[id].xMax - after[id].xMin, before[id].xMax - before[id].xMin);
+        assert.equal(resized[id - 1].e_we, domains[id - 1].e_we);
+      }
+    }
+    const rect = { ...before[2], xMin: before[2].xMin - 90000, yMin: before[2].yMin - 90000 };
+    const after = Domain.buildGeometries(Domain.resizeDomains(domains, config, 2, rect, 'sw'), config);
+    close(after[3].center.lat, before[3].center.lat, 1e-9);
+    close(Projection.normalizeLon(after[3].center.lon - before[3].center.lon), 0, 1e-9);
+  });
+}
+
+test('invalid parent shrink is rejected atomically; manual dimension resize retains child position', () => {
+  const domains = [root({ e_we: 301, e_sn: 301 }), { id: 2, parent_id: 1, parent_grid_ratio: 3,
+    i_parent_start: 101, j_parent_start: 101, e_we: 91, e_sn: 91, dx: 3000, dy: 3000, bounds: {} }];
+  const original = JSON.stringify(domains), before = Domain.buildGeometries(domains, lambert);
+  assert.throws(() => Domain.resizeDomains(domains, lambert, 1,
+    { ...before[1], xMax: before[1].xMin + 90000 }, 'ne'), /cannot fit/);
+  assert.equal(JSON.stringify(domains), original);
+  const resized = Domain.resizeDomains(domains, lambert, 1, before[1], 'ne', { e_we: 302, e_sn: 301 });
+  const after = Domain.buildGeometries(resized, lambert);
+  close(after[2].center.lat, before[2].center.lat, 1e-9);
+  close(after[2].center.lon, before[2].center.lon, 1e-9);
 });
 
 test('defaults are valid in the southern hemisphere and invalid singular parameters are rejected', () => {

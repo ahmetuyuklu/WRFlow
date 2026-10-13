@@ -5,12 +5,13 @@
 const WRFNamelistWPS = (() => {
 
   function generate(state) {
+    state = WRFConfig.prepare(state);
     const d = state.domains;
     const n = d.length;
     const K = WRFUtils.nlKey;
     const J = WRFUtils.nlJoin;
     const startDates = d.map(() => `'${WRFUtils.toWRFDate(state.startDate)}'`);
-    const endDates = d.map(() => `'${WRFUtils.toWRFDate(state.endDate)}'`);
+    const endDates = d.map(() => `'${WRFUtils.toWRFDate(state.timeline.dataEnd)}'`);
 
     let out = '';
 
@@ -43,10 +44,10 @@ const WRFNamelistWPS = (() => {
     out += K('truelat1') + `= ${state.truelat1},\n`;
     out += K('truelat2') + `= ${state.truelat2},\n`;
     out += K('stand_lon') + `= ${state.standLon},\n`;
-    out += K('geog_data_path') + `= '${state.geogDataPath || '/path/to/WPS_GEOG/'}',\n`;
+    out += K('geog_data_path') + `= '${state.geogDataPath.replace(/'/g, "''")}',\n`;
     out += '/\n\n';
 
-    const filePrefix = `${state.outputDir || './wrf_output'}/FILE`;
+    const filePrefix = `${state.outputDir.replace(/'/g, "''")}/FILE`;
 
     // &ungrib
     out += '&ungrib\n';
@@ -57,7 +58,7 @@ const WRFNamelistWPS = (() => {
     // &metgrid
     out += '&metgrid\n';
     out += K('fg_name') + `= '${filePrefix}',\n`;
-    out += K('opt_output_from_metgrid_path') + `= '${state.outputDir || './wrf_output'}/',\n`;
+    out += K('opt_output_from_metgrid_path') + `= '${state.outputDir.replace(/'/g, "''")}/',\n`;
     out += K('io_form_metgrid') + '= 2,\n';
     out += '/\n';
 

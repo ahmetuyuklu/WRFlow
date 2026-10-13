@@ -102,5 +102,57 @@ const WRFDateTime = (() => {
     return comp;
   }
 
-  return { DATA_SOURCES, getStartHours, splitDuration, calcEndDate, validate, getDateComponents };
+  function getTimeline(state) {
+    if (Object.hasOwn(state, 'startDateStr') && !state.startDateStr) throw new Error('Select a start date.');
+    if (!state.startDateStr && !state.cycleDate && !state.startDate) throw new Error('Select a start date.');
+    const source = state.dataSource || 'GFS';
+    const hourly = (state.gfsInterval || 3) === 1;
+    const sourceInterval = source === 'ERA5' || hourly ? 3600 : 10800;
+    const interval = state.intervalSecondsOverride ?? sourceInterval;
+    if (!Number.isInteger(interval) || interval < sourceInterval || interval % sourceInterval !== 0) {
+      throw new Error('Boundary interval must be a whole multiple of the selected data interval.');
+    }
+    const cycle = state.startDateStr
+      ? new Date(`${state.startDateStr}T${WRFUtils.pad(state.startHour, 2)}:00:00Z`)
+      : new Date(state.cycleDate || state.startDate);
+    if (!Number.isFinite(cycle.getTime()) || (state.startDateStr &&
+        (cycle.toISOString().slice(0, 10) !== state.startDateStr || !getStartHours(source).includes(state.startHour)))) {
+      throw new Error('Select a valid UTC date and start/cycle hour.');
+    }
+    const offset = source === 'GFS' ? (state.startForecastHour ?? 0) : 0;
+    const duration = state.durationHours;
+    if (!Number.isInteger(duration) || duration < 1 || duration > DATA_SOURCES[source].maxDurationHours) {
+      throw new Error('Run duration must be a positive whole number of hours within the data source limit.');
+    }
+    if (!Number.isInteger(offset) || offset < 0 || offset % (sourceInterval / 3600) !== 0) {
+      throw new Error('Start forecast hour must be nonnegative and aligned with the selected GFS interval.');
+    }
+    const start = new Date(cycle.getTime() + offset * 3600000);
+    const end = new Date(start.getTime() + duration * 3600000);
+    const dataEnd = new Date(start.getTime() + Math.ceil(duration * 3600 / interval) * interval * 1000);
+    const endForecastHour = (dataEnd - cycle) / 3600000;
+    if (source === 'GFS' && endForecastHour > (hourly ? 120 : 384)) {
+      throw new Error(`GFS boundary coverage ends at f${endForecastHour}; this mode supports up to f${hourly ? 120 : 384}.`);
+    }
+    return { cycle, start, end, dataEnd, interval, startForecastHour: offset, endForecastHour };
+  }
+
+  function dataTimes(timeline) {
+    const times = [];
+    for (let time = +timeline.start; time <= +timeline.dataEnd; time += timeline.interval * 1000) times.push(new Date(time));
+    return times;
+  }
+
+  function era5Requests(timeline) {
+    const days = new Map();
+    dataTimes(timeline).forEach(time => {
+      const date = time.toISOString().slice(0, 10);
+      if (!days.has(date)) days.set(date, { year: date.slice(0, 4), month: date.slice(5, 7), day: date.slice(8, 10), time: [] });
+      days.get(date).time.push(`${WRFUtils.pad(time.getUTCHours(), 2)}:00`);
+    });
+    return [...days.values()];
+  }
+
+  return { DATA_SOURCES, getStartHours, splitDuration, calcEndDate, validate, getDateComponents,
+    getTimeline, dataTimes, era5Requests };
 })();

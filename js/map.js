@@ -161,7 +161,8 @@ const WRFMap = (() => {
         // Restore the committed geometry before asking the app to snap the edit.
         setDomainGeometry(activeDomainId, original);
         if (valid && projectedRect) document.dispatchEvent(new CustomEvent('domain-updated', {
-          detail: { domainId: activeDomainId, projectedRect }
+          detail: { domainId: activeDomainId, projectedRect,
+            operation: key === 'center' ? 'move' : 'resize', handle: key }
         }));
       });
       markers[key] = marker;

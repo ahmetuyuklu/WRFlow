@@ -249,6 +249,10 @@ html, body {
 }
 
 /* ===== Buttons ===== */
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .btn-next {
   padding: 0.625rem 1.25rem;
   border-radius: 0.5rem;

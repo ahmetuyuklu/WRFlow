@@ -5,15 +5,17 @@
 const WRFNamelistInput = (() => {
 
   function generate(state) {
+    state = WRFConfig.prepare(state);
     const d = state.domains;
     const n = d.length;
     const K = WRFUtils.nlKey;
     const J = WRFUtils.nlJoin;
     const R = WRFUtils.repeatVal;
     const dur = WRFDateTime.splitDuration(state.durationHours);
-    const dc = WRFDateTime.getDateComponents(
-      state.startDateStr, state.startHour, state.durationHours, n
-    );
+    // REAL needs the bracketing boundary time; WRF's run_days/run_hours take
+    // precedence over end_* and retain the requested simulation duration.
+    const dc = WRFDateTime.getDateComponents(state.startDate, state.startDate.getUTCHours(),
+      (state.timeline.dataEnd - state.startDate) / 3600000, n);
 
     // Time step: ~6 * dx(km) seconds, rounded to integer
     const timeStep = Math.max(1, Math.round(6 * d[0].dx / 1000));
@@ -26,9 +28,9 @@ const WRFNamelistInput = (() => {
 
     const eVert = state.eVert || 45;
     const pTop = state.pTop || 5000;
-    // num_metgrid_levels must match met_em vertical dimension.
-    // GFS 0.25° full column = 34 levels; ERA5 = 38.
-    const numMetgridLevels = state.dataSource === 'ERA5' ? 38 : 34;
+    // Current full GFS has 41 pressure levels + surface. The run script reads
+    // actual met_em metadata before REAL, avoiding dataset-version assumptions.
+    const numMetgridLevels = state.numMetgridLevels ?? (state.dataSource === 'ERA5' ? 38 : 42);
     const numSoilLayers = WRFPhysics.getSoilLayers(state.physics.sf_surface_physics);
     const feedback = state.feedback !== undefined ? state.feedback : 1;
     const wDamping = state.wDamping !== undefined ? state.wDamping : 1;
@@ -79,6 +81,12 @@ const WRFNamelistInput = (() => {
     out += K('io_form_input') + '= 2,\n';
     out += K('io_form_boundary') + '= 2,\n';
     if (debugLevel > 0) out += K('debug_level') + `= ${debugLevel},\n`;
+    if (sstUpdate > 0) {
+      out += K('auxinput4_inname') + "= 'wrflowinp_d<domain>',\n";
+      out += K('auxinput4_interval') + `= ${R(intervalSec / 60, n)},\n`;
+      out += K('auxinput4_end_h') + `= ${R((state.timeline.dataEnd - state.startDate) / 3600000, n)},\n`;
+      out += K('io_form_auxinput4') + '= 2,\n';
+    }
     out += '/\n\n';
 
     // &domains
@@ -114,6 +122,10 @@ const WRFNamelistInput = (() => {
     out += K('sf_sfclay_physics') + `= ${R(ph.sf_sfclay_physics, n)},\n`;
     out += K('sf_surface_physics') + `= ${R(ph.sf_surface_physics, n)},\n`;
     out += K('bl_pbl_physics') + `= ${R(ph.bl_pbl_physics, n)},\n`;
+    if (ph.bl_pbl_physics === 5) {
+      out += K('bl_mynn_closure') + `= ${state.mynnClosure},\n`;
+      out += K('bl_mynn_edmf') + `= ${R(state.mynnEdmf, n)},\n`;
+    }
     out += K('bldt') + `= ${R(0, n)},\n`;
     out += K('cu_physics') + `= ${J(d.map(dom => {
       // Disable cumulus for fine-resolution domains
